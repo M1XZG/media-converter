@@ -339,11 +339,11 @@ def convert():
     # Add hardware-accelerated decoding if GPU is available
     if gpu and mode != "audio":
         if gpu["name"] == "nvenc":
-            cmd.extend(["-hwaccel", "cuda", "-hwaccel_output_format", "cuda"])
+            cmd.extend(["-hwaccel", "cuda"])
         elif gpu["name"] == "qsv":
-            cmd.extend(["-hwaccel", "qsv", "-hwaccel_output_format", "qsv"])
+            cmd.extend(["-hwaccel", "qsv"])
         elif gpu["name"] == "vaapi":
-            cmd.extend(["-hwaccel", "vaapi", "-hwaccel_output_format", "vaapi",
+            cmd.extend(["-hwaccel", "vaapi",
                         "-hwaccel_device", "/dev/dri/renderD128"])
 
     cmd.extend(["-i", str(source_file)])
@@ -366,16 +366,19 @@ def convert():
         if output_format in ("mp4", "mkv", "mov") and gpu:
             enc = gpu["h264"]
             if gpu["name"] == "nvenc":
-                cmd.extend(["-codec:v", enc, "-preset", "p4", "-rc", "vbr",
-                            "-cq", "23", "-b:v", "0"])
+                cmd.extend(["-codec:v", enc, "-preset", "p5", "-tune", "hq",
+                            "-rc", "constqp", "-qp", "20",
+                            "-b:v", "0", "-profile:v", "high"])
             elif gpu["name"] == "amf":
-                cmd.extend(["-codec:v", enc, "-quality", "balanced",
-                            "-rc", "vbr_latency", "-qp_i", "23", "-qp_p", "23"])
+                cmd.extend(["-codec:v", enc, "-quality", "quality",
+                            "-rc", "cqp", "-qp_i", "20", "-qp_p", "20",
+                            "-qp_b", "22", "-profile:v", "high"])
             elif gpu["name"] == "qsv":
                 cmd.extend(["-codec:v", enc, "-preset", "medium",
-                            "-global_quality", "23"])
+                            "-global_quality", "20", "-profile:v", "high"])
             elif gpu["name"] == "vaapi":
-                cmd.extend(["-codec:v", enc, "-qp", "23"])
+                cmd.extend(["-codec:v", enc, "-qp", "20",
+                            "-profile:v", "high"])
             cmd.extend(["-codec:a", "aac", "-b:a", "192k"])
             if output_format == "mp4":
                 cmd.extend(["-movflags", "+faststart"])
