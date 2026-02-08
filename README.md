@@ -41,6 +41,23 @@ sudo apt update && sudo apt install ffmpeg
 
 ## Quick Start
 
+### Docker (recommended)
+
+```bash
+git clone https://github.com/yourusername/media-converter.git
+cd media-converter
+docker compose up -d
+```
+
+Then open **http://localhost:5000**. GPU acceleration works automatically if you have the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html) installed.
+
+To run **without GPU** support, remove the `deploy` block from `docker-compose.yml`, or use a simpler run command:
+
+```bash
+docker build -t media-converter .
+docker run -d -p 5000:5000 --name media-converter media-converter
+```
+
 ### Windows
 ```bash
 # Clone the repository
@@ -135,6 +152,9 @@ media-converter/
 ├── app.py              # Flask application
 ├── cleanup.py          # File cleanup utility
 ├── requirements.txt    # Python dependencies
+├── Dockerfile          # Docker image definition
+├── docker-compose.yml  # Docker Compose with GPU support
+├── .dockerignore       # Docker build exclusions
 ├── setup.bat           # Windows setup script
 ├── setup.sh            # Linux/macOS setup script
 ├── .gitignore

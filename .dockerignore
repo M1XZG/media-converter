@@ -1,0 +1,15 @@
+venv/
+__pycache__/
+*.pyc
+*.pyo
+.git/
+.gitignore
+.env
+*.md
+*.bat
+*.sh
+LICENSE
+uploads/
+converted/
+.vscode/
+.idea/

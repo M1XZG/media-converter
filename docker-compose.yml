@@ -1,0 +1,26 @@
+services:
+  media-converter:
+    build: .
+    container_name: media-converter
+    ports:
+      - "5000:5000"
+    environment:
+      - FLASK_HOST=0.0.0.0
+      - FLASK_PORT=5000
+      - CLEANUP_HOURS=24
+    volumes:
+      # Persist uploads/converted files across container restarts (optional)
+      - ./uploads:/app/uploads
+      - ./converted:/app/converted
+    restart: unless-stopped
+
+    # GPU support — requires NVIDIA Container Toolkit on the host.
+    # If no GPU is available, the container still works fine (CPU encoding).
+    # To disable GPU, simply remove the 'deploy' block below.
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
