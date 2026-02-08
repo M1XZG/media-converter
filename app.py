@@ -284,6 +284,8 @@ def upload():
         "video_codec": video_codec or "N/A",
         "audio_codec": audio_codec or "N/A",
         "resolution": resolution or "N/A",
+        "width": int(resolution.split("x")[0]) if resolution else None,
+        "height": int(resolution.split("x")[1]) if resolution else None,
     })
 
 
@@ -298,6 +300,7 @@ def convert():
     output_format = data.get("format", "").lower()
     mode = data.get("mode", "video")  # "video" or "audio"
     total_duration = data.get("duration_seconds")  # seconds, from upload probe
+    target_resolution = data.get("resolution")  # e.g. "1920x1080" or null for original
 
     if not file_id or not output_format:
         return jsonify({"error": "Missing file_id or format."}), 400
@@ -404,6 +407,16 @@ def convert():
         elif output_format == "flv":
             cmd.extend(["-codec:v", "flv1", "-b:v", "2M",
                         "-codec:a", "libmp3lame", "-q:a", "4"])
+
+    # Apply resolution scaling if requested (video mode only)
+    if mode != "audio" and target_resolution:
+        try:
+            tw, th = target_resolution.split("x")
+            tw, th = int(tw), int(th)
+            # Use Lanczos for high-quality scaling, ensure dimensions are divisible by 2
+            cmd.extend(["-vf", f"scale={tw}:{th}:flags=lanczos"])
+        except (ValueError, AttributeError):
+            pass  # ignore invalid resolution, use original
 
     # Add progress output flag (machine-readable to stdout)
     cmd.extend(["-progress", "pipe:1", "-nostats"])

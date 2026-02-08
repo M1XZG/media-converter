@@ -499,6 +499,89 @@
             color: var(--accent);
         }
 
+        /* Resolution Grid */
+        .resolution-section {
+            display: none;
+            margin-bottom: 1.5rem;
+        }
+
+        .resolution-section.visible {
+            display: block;
+        }
+
+        .resolution-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+            gap: 0.5rem;
+        }
+
+        .resolution-btn {
+            padding: 0.55rem 0.5rem;
+            border: 2px solid var(--border-color);
+            border-radius: 10px;
+            background: var(--bg-input);
+            color: var(--text-secondary);
+            font-weight: 600;
+            font-size: 0.8rem;
+            cursor: pointer;
+            text-align: center;
+            transition: all var(--transition-speed);
+            line-height: 1.35;
+        }
+
+        .resolution-btn:hover {
+            border-color: var(--accent);
+            color: var(--text-primary);
+        }
+
+        .resolution-btn.active {
+            border-color: var(--accent);
+            background: var(--accent-glow);
+            color: var(--accent);
+        }
+
+        .resolution-btn .res-label {
+            display: block;
+            font-weight: 700;
+            font-size: 0.825rem;
+        }
+
+        .resolution-btn .res-detail {
+            display: block;
+            font-size: 0.7rem;
+            opacity: 0.7;
+            margin-top: 0.1rem;
+        }
+
+        .resolution-btn .res-badge {
+            display: inline-block;
+            font-size: 0.6rem;
+            font-weight: 700;
+            padding: 0.1rem 0.35rem;
+            border-radius: 4px;
+            margin-top: 0.2rem;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .res-badge.upscale {
+            background: var(--warning-bg);
+            color: var(--warning);
+            border: 1px solid var(--warning);
+        }
+
+        .res-badge.downscale {
+            background: var(--accent-glow);
+            color: var(--accent);
+            border: 1px solid var(--accent);
+        }
+
+        .res-badge.original {
+            background: var(--success-bg);
+            color: var(--success);
+            border: 1px solid var(--success);
+        }
+
         /* Convert Button */
         .convert-btn {
             width: 100%;
@@ -895,6 +978,12 @@
                     {% endfor %}
                 </div>
 
+                <!-- Resolution Options (video mode only, dynamically populated) -->
+                <div class="resolution-section" id="resolution-section">
+                    <div class="option-label">Output Resolution</div>
+                    <div class="resolution-grid" id="resolution-grid"></div>
+                </div>
+
                 <button class="convert-btn" id="convert-btn" onclick="startConversion()">
                     Convert Now
                 </button>
@@ -933,7 +1022,21 @@
         let currentVideoFormat = 'mp4';
         let currentAudioFormat = 'mp3';
         let currentDurationSeconds = null;
+        let currentResolution = null;  // null = original
+        let sourceWidth = null;
+        let sourceHeight = null;
         let progressPollInterval = null;
+
+        /* ============================================================
+           Resolution Presets
+        ============================================================ */
+        const RESOLUTION_PRESETS = [
+            { label: '480p',  tag: 'SD',   w: 854,  h: 480  },
+            { label: '720p',  tag: 'HD',   w: 1280, h: 720  },
+            { label: '1080p', tag: 'FHD',  w: 1920, h: 1080 },
+            { label: '1440p', tag: 'QHD',  w: 2560, h: 1440 },
+            { label: '2160p', tag: '4K',   w: 3840, h: 2160 },
+        ];
 
         /* ============================================================
            Theme
@@ -1065,6 +1168,9 @@
             document.getElementById('file-resolution').textContent = data.resolution !== 'N/A' ? `📐 ${data.resolution}` : '';
             document.getElementById('file-info').classList.add('visible');
             currentDurationSeconds = data.duration_seconds;
+            sourceWidth = data.width;
+            sourceHeight = data.height;
+            buildResolutionOptions();
         }
 
         /* ============================================================
@@ -1081,6 +1187,14 @@
             });
             document.getElementById('video-formats').style.display = mode === 'video' ? '' : 'none';
             document.getElementById('audio-formats').style.display = mode === 'audio' ? '' : 'none';
+
+            // Show resolution options only in video mode
+            const resSec = document.getElementById('resolution-section');
+            if (mode === 'video' && sourceWidth && sourceHeight) {
+                resSec.classList.add('visible');
+            } else {
+                resSec.classList.remove('visible');
+            }
         }
 
         function setFormat(fmt, mode) {
@@ -1095,6 +1209,74 @@
                     b.classList.toggle('active', b.dataset.format === fmt);
                 });
             }
+        }
+
+        /* ============================================================
+           Resolution Options
+        ============================================================ */
+        function buildResolutionOptions() {
+            const grid = document.getElementById('resolution-grid');
+            const section = document.getElementById('resolution-section');
+            grid.innerHTML = '';
+            currentResolution = null;
+
+            if (!sourceWidth || !sourceHeight) {
+                section.classList.remove('visible');
+                return;
+            }
+
+            // "Original" button (always first, always default)
+            const origBtn = document.createElement('button');
+            origBtn.className = 'resolution-btn active';
+            origBtn.dataset.resolution = '';
+            origBtn.innerHTML = `
+                <span class="res-label">Original</span>
+                <span class="res-detail">${sourceWidth}×${sourceHeight}</span>
+                <span class="res-badge original">Source</span>
+            `;
+            origBtn.addEventListener('click', () => selectResolution('', origBtn));
+            grid.appendChild(origBtn);
+
+            // Add presets that differ from source
+            for (const preset of RESOLUTION_PRESETS) {
+                // Skip if this is effectively the same as the source
+                if (preset.h === sourceHeight) continue;
+
+                const isUpscale = preset.h > sourceHeight;
+                const badge = isUpscale ? 'upscale' : 'downscale';
+                const badgeText = isUpscale ? 'Upscale' : 'Downscale';
+
+                // Calculate the width maintaining aspect ratio
+                const scaledW = Math.round((sourceWidth / sourceHeight) * preset.h);
+                // Ensure even dimensions
+                const finalW = scaledW % 2 === 0 ? scaledW : scaledW + 1;
+                const finalH = preset.h % 2 === 0 ? preset.h : preset.h + 1;
+                const resValue = `${finalW}x${finalH}`;
+
+                const btn = document.createElement('button');
+                btn.className = 'resolution-btn';
+                btn.dataset.resolution = resValue;
+                btn.innerHTML = `
+                    <span class="res-label">${preset.label}</span>
+                    <span class="res-detail">${finalW}×${finalH} · ${preset.tag}</span>
+                    <span class="res-badge ${badge}">${badgeText}</span>
+                `;
+                btn.addEventListener('click', () => selectResolution(resValue, btn));
+                grid.appendChild(btn);
+            }
+
+            // Show the section if in video mode
+            if (currentMode === 'video') {
+                section.classList.add('visible');
+            }
+        }
+
+        function selectResolution(resValue, clickedBtn) {
+            currentResolution = resValue || null;
+            document.querySelectorAll('#resolution-grid .resolution-btn').forEach(b => {
+                b.classList.remove('active');
+            });
+            clickedBtn.classList.add('active');
         }
 
         /* ============================================================
@@ -1129,6 +1311,7 @@
                     format: format,
                     mode: currentMode,
                     duration_seconds: currentDurationSeconds,
+                    resolution: currentResolution,
                 }),
             })
             .then(r => r.json().then(data => ({ status: r.status, data })))
@@ -1292,6 +1475,9 @@
             currentVideoFormat = 'mp4';
             currentAudioFormat = 'mp3';
             currentDurationSeconds = null;
+            currentResolution = null;
+            sourceWidth = null;
+            sourceHeight = null;
 
             // Reset UI
             dropZone.style.display = '';
@@ -1301,6 +1487,8 @@
             document.getElementById('result-section').classList.remove('visible');
             document.getElementById('result-section').innerHTML = '';
             document.getElementById('upload-progress').classList.remove('visible');
+            document.getElementById('resolution-section').classList.remove('visible');
+            document.getElementById('resolution-grid').innerHTML = '';
             fileInput.value = '';
 
             // Reset mode tabs
