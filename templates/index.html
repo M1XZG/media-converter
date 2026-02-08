@@ -235,6 +235,46 @@
             text-transform: uppercase;
         }
 
+        /* GPU Status Badge */
+        .gpu-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 0.35rem 0.75rem;
+            border-radius: 8px;
+            font-size: 0.775rem;
+            font-weight: 600;
+            margin-top: 0.75rem;
+        }
+
+        .gpu-badge.active {
+            background: var(--success-bg);
+            border: 1px solid var(--success);
+            color: var(--success);
+        }
+
+        .gpu-badge.inactive {
+            background: var(--bg-input);
+            border: 1px solid var(--border-color);
+            color: var(--text-muted);
+        }
+
+        .gpu-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .gpu-badge.active .gpu-dot {
+            background: var(--success);
+            box-shadow: 0 0 6px var(--success);
+        }
+
+        .gpu-badge.inactive .gpu-dot {
+            background: var(--text-muted);
+        }
+
         /* ----------------------------------------------------------------
            FFmpeg Warning
         ---------------------------------------------------------------- */
@@ -699,7 +739,7 @@
                 </div>
                 <div class="info-item">
                     <span class="icon">⚡</span>
-                    <span><strong>Fast</strong> — powered by FFmpeg with optimised presets</span>
+                    <span><strong>Fast</strong> — GPU-accelerated when available, FFmpeg optimised presets</span>
                 </div>
             </div>
             <div style="margin-top: 1rem;">
@@ -719,6 +759,19 @@
                     <span class="format-tag">TS</span>
                     <span class="format-tag">VOB</span>
                 </div>
+            </div>
+            <div>
+                {% if gpu_info %}
+                <div class="gpu-badge active">
+                    <span class="gpu-dot"></span>
+                    GPU Acceleration: {{ gpu_info.label }}
+                </div>
+                {% else %}
+                <div class="gpu-badge inactive">
+                    <span class="gpu-dot"></span>
+                    GPU Acceleration: Not available (using CPU)
+                </div>
+                {% endif %}
             </div>
         </div>
 
@@ -1042,12 +1095,16 @@
            Results
         ============================================================ */
         function showSuccess(data) {
+            const gpuNote = data.gpu_used
+                ? `<div style="font-size: 0.775rem; color: var(--text-muted); margin-bottom: 0.5rem;">⚡ GPU-accelerated (${data.gpu_label})</div>`
+                : '';
             const section = document.getElementById('result-section');
             section.innerHTML = `
                 <div class="result-success">
                     <div class="result-icon">✅</div>
                     <div class="result-message">Conversion Complete!</div>
                     <div class="result-size">Output file size: ${data.output_size}</div>
+                    ${gpuNote}
                     <a href="/download/${data.download_id}" class="download-btn">
                         ⬇️ Download File
                     </a>

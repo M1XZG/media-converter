@@ -73,6 +73,77 @@ def _ffmpeg_available() -> bool:
     return shutil.which("ffmpeg") is not None
 
 
+# ---------------------------------------------------------------------------
+# GPU Encoder Detection
+# ---------------------------------------------------------------------------
+
+# Mapping: encoder name -> (test_encoder, friendly label)
+_GPU_ENCODERS = {
+    "nvenc":  {"h264": "h264_nvenc",  "hevc": "hevc_nvenc",  "label": "NVIDIA NVENC"},
+    "amf":    {"h264": "h264_amf",   "hevc": "hevc_amf",   "label": "AMD AMF"},
+    "qsv":    {"h264": "h264_qsv",   "hevc": "hevc_qsv",   "label": "Intel QSV"},
+    "vaapi":  {"h264": "h264_vaapi", "hevc": "hevc_vaapi", "label": "VA-API"},
+}
+
+_detected_gpu: dict | None = None  # cached result
+
+
+def _detect_gpu_encoder() -> dict:
+    """Detect available GPU hardware encoders by probing FFmpeg.
+
+    Returns a dict like:
+        {"name": "nvenc", "label": "NVIDIA NVENC", "h264": "h264_nvenc", "hevc": "hevc_nvenc"}
+    or an empty dict if no GPU encoder is available.
+    """
+    global _detected_gpu
+    if _detected_gpu is not None:
+        return _detected_gpu
+
+    if not _ffmpeg_available():
+        _detected_gpu = {}
+        return _detected_gpu
+
+    # Query which encoders FFmpeg was compiled with
+    try:
+        result = subprocess.run(
+            ["ffmpeg", "-hide_banner", "-encoders"],
+            capture_output=True, text=True, timeout=10,
+        )
+        available_encoders = result.stdout if result.returncode == 0 else ""
+    except Exception:
+        _detected_gpu = {}
+        return _detected_gpu
+
+    # Check each GPU family in priority order (NVENC > AMF > QSV > VAAPI)
+    for name, info in _GPU_ENCODERS.items():
+        h264_enc = info["h264"]
+        if h264_enc in available_encoders:
+            # Verify the encoder actually works (driver present, device accessible)
+            try:
+                test = subprocess.run(
+                    [
+                        "ffmpeg", "-hide_banner", "-loglevel", "error",
+                        "-f", "lavfi", "-i", "nullsrc=s=256x256:d=1",
+                        "-c:v", h264_enc, "-frames:v", "1",
+                        "-f", "null", "-",
+                    ],
+                    capture_output=True, text=True, timeout=15,
+                )
+                if test.returncode == 0:
+                    _detected_gpu = {
+                        "name": name,
+                        "label": info["label"],
+                        "h264": info["h264"],
+                        "hevc": info["hevc"],
+                    }
+                    return _detected_gpu
+            except Exception:
+                continue
+
+    _detected_gpu = {}
+    return _detected_gpu
+
+
 def _probe_file(filepath: Path) -> dict:
     """Use ffprobe to get file metadata."""
     try:
@@ -139,11 +210,13 @@ def cleanup_old_files():
 
 @app.route("/")
 def index():
+    gpu = _detect_gpu_encoder()
     return render_template(
         "index.html",
         video_formats=VIDEO_OUTPUT_FORMATS,
         audio_formats=AUDIO_OUTPUT_FORMATS,
         ffmpeg_ok=_ffmpeg_available(),
+        gpu_info=gpu,
     )
 
 
@@ -245,11 +318,27 @@ def convert():
     output_name = f"{file_id}_converted{out_ext}"
     output_path = CONVERTED_FOLDER / output_name
 
+    # Detect GPU encoder
+    gpu = _detect_gpu_encoder()
+    hw_accel_used = False
+
     # Build FFmpeg command
-    cmd = ["ffmpeg", "-y", "-i", str(source_file)]
+    cmd = ["ffmpeg", "-y"]
+
+    # Add hardware-accelerated decoding if GPU is available
+    if gpu and mode != "audio":
+        if gpu["name"] == "nvenc":
+            cmd.extend(["-hwaccel", "cuda", "-hwaccel_output_format", "cuda"])
+        elif gpu["name"] == "qsv":
+            cmd.extend(["-hwaccel", "qsv", "-hwaccel_output_format", "qsv"])
+        elif gpu["name"] == "vaapi":
+            cmd.extend(["-hwaccel", "vaapi", "-hwaccel_output_format", "vaapi",
+                        "-hwaccel_device", "/dev/dri/renderD128"])
+
+    cmd.extend(["-i", str(source_file)])
 
     if mode == "audio":
-        # Extract audio only
+        # Extract audio only — GPU not used for audio
         cmd.extend(["-vn"])  # no video
         if output_format == "mp3":
             cmd.extend(["-codec:a", "libmp3lame", "-q:a", "2"])
@@ -262,11 +351,30 @@ def convert():
         elif output_format == "ogg":
             cmd.extend(["-codec:a", "libvorbis", "-q:a", "5"])
     else:
-        # Video conversion
-        if output_format == "mp4":
+        # Video conversion — prefer GPU encoder when available
+        if output_format in ("mp4", "mkv", "mov") and gpu:
+            # These containers support H.264 from hardware encoders
+            enc = gpu["h264"]
+            if gpu["name"] == "nvenc":
+                cmd.extend(["-codec:v", enc, "-preset", "p4", "-rc", "vbr",
+                            "-cq", "23", "-b:v", "0"])
+            elif gpu["name"] == "amf":
+                cmd.extend(["-codec:v", enc, "-quality", "balanced",
+                            "-rc", "vbr_latency", "-qp_i", "23", "-qp_p", "23"])
+            elif gpu["name"] == "qsv":
+                cmd.extend(["-codec:v", enc, "-preset", "medium",
+                            "-global_quality", "23"])
+            elif gpu["name"] == "vaapi":
+                cmd.extend(["-codec:v", enc, "-qp", "23"])
+            cmd.extend(["-codec:a", "aac", "-b:a", "192k"])
+            if output_format == "mp4":
+                cmd.extend(["-movflags", "+faststart"])
+            hw_accel_used = True
+        elif output_format == "mp4":
             cmd.extend(["-codec:v", "libx264", "-preset", "medium", "-crf", "23",
                         "-codec:a", "aac", "-b:a", "192k", "-movflags", "+faststart"])
         elif output_format == "webm":
+            # VP9 — no widespread GPU encoder, use software
             cmd.extend(["-codec:v", "libvpx-vp9", "-crf", "30", "-b:v", "0",
                         "-codec:a", "libopus", "-b:a", "128k"])
         elif output_format == "mkv":
@@ -306,6 +414,8 @@ def convert():
     return jsonify({
         "download_id": output_name,
         "output_size": _human_size(output_size),
+        "gpu_used": hw_accel_used,
+        "gpu_label": gpu.get("label", "") if hw_accel_used else "",
     })
 
 
@@ -328,9 +438,11 @@ def download(download_id):
 
 @app.route("/health")
 def health():
+    gpu = _detect_gpu_encoder()
     return jsonify({
         "status": "ok",
         "ffmpeg": _ffmpeg_available(),
+        "gpu": gpu.get("label", "None") if gpu else "None",
     })
 
 
@@ -350,8 +462,10 @@ if __name__ == "__main__":
     host = os.environ.get("FLASK_HOST", "0.0.0.0")
     port = int(os.environ.get("FLASK_PORT", 5000))
 
+    gpu = _detect_gpu_encoder()
     print(f"\n  Media Converter running at http://localhost:{port}")
     print(f"  FFmpeg available: {_ffmpeg_available()}")
+    print(f"  GPU acceleration: {gpu.get('label', 'Not available') if gpu else 'Not available'}")
     print(f"  Files auto-delete after: {CLEANUP_HOURS} hours\n")
 
     app.run(host=host, port=port, debug=False)

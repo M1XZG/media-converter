@@ -6,6 +6,7 @@ A self-hosted web application for converting video files between formats and ext
 
 - **Video Format Conversion** — Convert between popular video formats (MP4, AVI, MKV, MOV, WMV, FLV, WebM)
 - **Audio Extraction** — Extract audio tracks from video files (MP3, AAC, WAV, FLAC, OGG)
+- **GPU Acceleration** — Automatically uses hardware encoding (NVIDIA NVENC, AMD AMF, Intel QSV, VA-API) when available, with seamless CPU fallback
 - **No File Size Limits** — Upload files of any size
 - **Automatic Cleanup** — All uploaded and converted files are automatically deleted after 24 hours
 - **Dark/Light Mode** — Modern UI with dark mode as default and easy toggle
@@ -80,6 +81,19 @@ python app.py
 ```
 
 Then open your browser to **http://localhost:5000**
+
+## GPU Acceleration
+
+The application automatically detects and uses GPU hardware encoders when available. On startup the console and the web UI will show whether GPU acceleration is active.
+
+| GPU Vendor | Encoder | Requirements |
+|---|---|---|
+| NVIDIA | NVENC | NVIDIA GPU + driver 470+, FFmpeg built with `--enable-nvenc` |
+| AMD | AMF | AMD GPU + Adrenalin driver, FFmpeg built with `--enable-amf` |
+| Intel | QSV | Intel iGPU/dGPU + media driver, FFmpeg built with `--enable-libmfx` or `--enable-libvpl` |
+| Linux (generic) | VA-API | VA-API capable GPU + `libva`, FFmpeg built with `--enable-vaapi` |
+
+GPU encoding is used for MP4, MKV, and MOV output. Other formats (AVI, WMV, FLV, WebM) and all audio extraction use CPU encoding. If a GPU encoder is detected but fails at runtime, FFmpeg will report an error — the app does not silently fall back mid-conversion.
 
 ## Configuration
 
