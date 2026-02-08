@@ -302,6 +302,17 @@ def convert():
     total_duration = data.get("duration_seconds")  # seconds, from upload probe
     target_resolution = data.get("resolution")  # e.g. "1920x1080" or null for original
 
+    # Determine if we are upscaling (need higher quality settings)
+    is_upscaling = False
+    if target_resolution and mode != "audio":
+        try:
+            _tw, _th = target_resolution.split("x")
+            # Compare target height to source — we don't know source here yet,
+            # but the client only sends a resolution when it differs from original
+            is_upscaling = True  # will be refined below after finding source
+        except (ValueError, AttributeError):
+            pass
+
     if not file_id or not output_format:
         return jsonify({"error": "Missing file_id or format."}), 400
 
@@ -318,6 +329,23 @@ def convert():
 
     if source_file is None or not source_file.exists():
         return jsonify({"error": "Upload not found. It may have expired."}), 404
+
+    # Refine upscaling detection by probing source resolution
+    if target_resolution and mode != "audio":
+        probe_data = _probe_file(source_file)
+        src_h = None
+        for stream in probe_data.get("streams", []):
+            if stream.get("codec_type") == "video":
+                src_h = stream.get("height")
+                break
+        if src_h:
+            try:
+                target_h = int(target_resolution.split("x")[1])
+                is_upscaling = target_h > src_h
+            except (ValueError, IndexError):
+                is_upscaling = False
+        else:
+            is_upscaling = False
 
     # Determine output settings
     if mode == "audio":
@@ -366,34 +394,42 @@ def convert():
             cmd.extend(["-codec:a", "libvorbis", "-q:a", "5"])
     else:
         # Video conversion — prefer GPU encoder when available
+        # Use higher quality settings when upscaling
+        qp_val = "16" if is_upscaling else "20"
+        crf_val = "18" if is_upscaling else "23"
+
         if output_format in ("mp4", "mkv", "mov") and gpu:
             enc = gpu["h264"]
+            nvenc_preset = "p7" if is_upscaling else "p5"
             if gpu["name"] == "nvenc":
-                cmd.extend(["-codec:v", enc, "-preset", "p5", "-tune", "hq",
-                            "-rc", "constqp", "-qp", "20",
+                cmd.extend(["-codec:v", enc, "-preset", nvenc_preset, "-tune", "hq",
+                            "-rc", "constqp", "-qp", qp_val,
                             "-b:v", "0", "-profile:v", "high"])
             elif gpu["name"] == "amf":
                 cmd.extend(["-codec:v", enc, "-quality", "quality",
-                            "-rc", "cqp", "-qp_i", "20", "-qp_p", "20",
-                            "-qp_b", "22", "-profile:v", "high"])
+                            "-rc", "cqp", "-qp_i", qp_val, "-qp_p", qp_val,
+                            "-qp_b", str(int(qp_val) + 2), "-profile:v", "high"])
             elif gpu["name"] == "qsv":
-                cmd.extend(["-codec:v", enc, "-preset", "medium",
-                            "-global_quality", "20", "-profile:v", "high"])
+                cmd.extend(["-codec:v", enc, "-preset", "veryslow" if is_upscaling else "medium",
+                            "-global_quality", qp_val, "-profile:v", "high"])
             elif gpu["name"] == "vaapi":
-                cmd.extend(["-codec:v", enc, "-qp", "20",
+                cmd.extend(["-codec:v", enc, "-qp", qp_val,
                             "-profile:v", "high"])
             cmd.extend(["-codec:a", "aac", "-b:a", "192k"])
             if output_format == "mp4":
                 cmd.extend(["-movflags", "+faststart"])
             hw_accel_used = True
         elif output_format == "mp4":
-            cmd.extend(["-codec:v", "libx264", "-preset", "medium", "-crf", "23",
+            preset = "slow" if is_upscaling else "medium"
+            cmd.extend(["-codec:v", "libx264", "-preset", preset, "-crf", crf_val,
                         "-codec:a", "aac", "-b:a", "192k", "-movflags", "+faststart"])
         elif output_format == "webm":
-            cmd.extend(["-codec:v", "libvpx-vp9", "-crf", "30", "-b:v", "0",
+            webm_crf = "24" if is_upscaling else "30"
+            cmd.extend(["-codec:v", "libvpx-vp9", "-crf", webm_crf, "-b:v", "0",
                         "-codec:a", "libopus", "-b:a", "128k"])
         elif output_format == "mkv":
-            cmd.extend(["-codec:v", "libx264", "-preset", "medium", "-crf", "23",
+            preset = "slow" if is_upscaling else "medium"
+            cmd.extend(["-codec:v", "libx264", "-preset", preset, "-crf", crf_val,
                         "-codec:a", "aac", "-b:a", "192k"])
         elif output_format == "avi":
             cmd.extend(["-codec:v", "mpeg4", "-q:v", "5",
@@ -413,8 +449,19 @@ def convert():
         try:
             tw, th = target_resolution.split("x")
             tw, th = int(tw), int(th)
-            # Use Lanczos for high-quality scaling, ensure dimensions are divisible by 2
-            cmd.extend(["-vf", f"scale={tw}:{th}:flags=lanczos"])
+            if is_upscaling:
+                # High-quality upscale filter chain:
+                # 1. Scale with Lanczos + accurate rounding + full chroma interpolation
+                # 2. Adaptive sharpening via unsharp mask to restore detail
+                #    (luma: 5x5 kernel, strength 0.5 — adds crispness without ringing)
+                # 3. Light deband to reduce color banding from upscale
+                vf = (f"scale={tw}:{th}:flags=lanczos+accurate_rnd+full_chroma_int+full_chroma_inp,"
+                      f"unsharp=5:5:0.5:5:5:0.3,"
+                      f"hqdn3d=1:1:3:3")
+            else:
+                # Downscale or same — Lanczos is sufficient
+                vf = f"scale={tw}:{th}:flags=lanczos+accurate_rnd"
+            cmd.extend(["-vf", vf])
         except (ValueError, AttributeError):
             pass  # ignore invalid resolution, use original
 
