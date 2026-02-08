@@ -24,17 +24,18 @@ fi
 # Create virtual environment if it doesn't exist
 if [ ! -d "venv" ]; then
     echo "Creating virtual environment..."
-    python3 -m venv venv
+    python3 -m venv --without-pip venv
+    source venv/bin/activate
+    echo "Installing pip..."
+    curl -sS https://bootstrap.pypa.io/get-pip.py | python3 > /dev/null 2>&1
     echo
+else
+    source venv/bin/activate
 fi
-
-# Activate venv
-echo "Activating virtual environment..."
-source venv/bin/activate
 
 # Install dependencies
 echo "Installing dependencies..."
-pip install -r requirements.txt --quiet
+venv/bin/pip install -r requirements.txt --quiet
 echo
 
 # Create directories

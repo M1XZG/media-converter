@@ -35,7 +35,7 @@ call venv\Scripts\activate.bat
 
 :: Install dependencies
 echo Installing dependencies...
-pip install -r requirements.txt --quiet
+venv\Scripts\pip install -r requirements.txt --quiet
 echo.
 
 :: Create directories
