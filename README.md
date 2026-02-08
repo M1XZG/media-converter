@@ -2,46 +2,41 @@
 
 A self-hosted web application for converting video files between formats and extracting audio from video files. Built with Python/Flask and powered by FFmpeg.
 
+---
+
+## Table of Contents
+
+- [Features](#features)
+- [Quick Start](#quick-start)
+- [Installing FFmpeg](#installing-ffmpeg)
+- [GPU Acceleration](#gpu-acceleration)
+- [Configuration](#configuration)
+- [Supported Formats](#supported-formats)
+- [Project Structure](#project-structure)
+- [License](#license)
+
+---
+
 ## Features
 
 - **Video Format Conversion** — Convert between popular video formats (MP4, AVI, MKV, MOV, WMV, FLV, WebM)
 - **Audio Extraction** — Extract audio tracks from video files (MP3, AAC, WAV, FLAC, OGG)
+- **Resolution Scaling** — Upscale or downscale video (480p, 720p, 1080p, 1440p, 4K) with high-quality Lanczos filtering
 - **GPU Acceleration** — Automatically uses hardware encoding (NVIDIA NVENC, AMD AMF, Intel QSV, VA-API) when available, with seamless CPU fallback
+- **Real-time Progress** — Live progress bar with speed and ETA during conversion
+- **Abort Support** — Cancel in-progress conversions with automatic cleanup
 - **No File Size Limits** — Upload files of any size
 - **Automatic Cleanup** — All uploaded and converted files are automatically deleted after 24 hours
 - **Dark/Light Mode** — Modern UI with dark mode as default and easy toggle
+- **Docker Ready** — Run with GPU support via Docker Compose in one command
 - **Self-Contained** — Runs in a Python virtual environment with minimal dependencies
 
-## Prerequisites
-
-- **Python 3.8+**
-- **FFmpeg** — Must be installed and available on your system PATH
-
-### Installing FFmpeg
-
-**Windows (via winget):**
-```bash
-winget install FFmpeg
-```
-
-**Windows (via Chocolatey):**
-```bash
-choco install ffmpeg
-```
-
-**macOS (via Homebrew):**
-```bash
-brew install ffmpeg
-```
-
-**Ubuntu/Debian:**
-```bash
-sudo apt update && sudo apt install ffmpeg
-```
+---
 
 ## Quick Start
 
-### Docker (recommended)
+<details>
+<summary><strong>🐳 Docker (recommended)</strong></summary>
 
 ```bash
 git clone https://github.com/yourusername/media-converter.git
@@ -49,59 +44,116 @@ cd media-converter
 docker compose up -d
 ```
 
-Then open **http://localhost:5000**. GPU acceleration works automatically if you have the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html) installed.
+Open **http://localhost:5000**. GPU acceleration works automatically if you have the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html) installed.
 
-To run **without GPU** support, remove the `deploy` block from `docker-compose.yml`, or use a simpler run command:
+**Without GPU support:**
+
+Remove the `deploy` block from `docker-compose.yml`, or run directly:
 
 ```bash
 docker build -t media-converter .
 docker run -d -p 5000:5000 --name media-converter media-converter
 ```
 
-### Windows
+</details>
+
+<details>
+<summary><strong>🪟 Windows</strong></summary>
+
+**Prerequisites:** Python 3.8+ and [FFmpeg](#installing-ffmpeg) on your PATH.
+
 ```bash
-# Clone the repository
 git clone https://github.com/yourusername/media-converter.git
 cd media-converter
-
-# Run the setup and start script
 setup.bat
 ```
 
-### Linux / macOS
+</details>
+
+<details>
+<summary><strong>🐧 Linux / macOS</strong></summary>
+
+**Prerequisites:** Python 3.8+ and [FFmpeg](#installing-ffmpeg) on your PATH.
+
 ```bash
-# Clone the repository
 git clone https://github.com/yourusername/media-converter.git
 cd media-converter
-
-# Make the script executable and run
 chmod +x setup.sh
 ./setup.sh
 ```
 
-### Manual Setup
+</details>
+
+<details>
+<summary><strong>⚙️ Manual Setup</strong></summary>
+
+**Prerequisites:** Python 3.8+ and [FFmpeg](#installing-ffmpeg) on your PATH.
+
 ```bash
-# Create virtual environment
+# Create and activate virtual environment
 python -m venv venv
 
-# Activate virtual environment
 # Windows:
 venv\Scripts\activate
 # Linux/macOS:
 source venv/bin/activate
 
-# Install dependencies
+# Install dependencies and run
 pip install -r requirements.txt
-
-# Run the application
 python app.py
 ```
 
+</details>
+
 Then open your browser to **http://localhost:5000**
+
+---
+
+## Installing FFmpeg
+
+FFmpeg must be installed and available on your system PATH (not required for Docker — it's included in the image).
+
+<details>
+<summary><strong>Windows</strong></summary>
+
+```bash
+# Via winget
+winget install FFmpeg
+
+# Or via Chocolatey
+choco install ffmpeg
+```
+
+</details>
+
+<details>
+<summary><strong>macOS</strong></summary>
+
+```bash
+brew install ffmpeg
+```
+
+</details>
+
+<details>
+<summary><strong>Ubuntu / Debian</strong></summary>
+
+```bash
+sudo apt update && sudo apt install ffmpeg
+```
+
+</details>
+
+---
 
 ## GPU Acceleration
 
-The application automatically detects and uses GPU hardware encoders when available. On startup the console and the web UI will show whether GPU acceleration is active.
+The application automatically detects and uses GPU hardware encoders when available. On startup, the console and the web UI will show whether GPU acceleration is active.
+
+GPU encoding is used for **MP4, MKV, and MOV** output. Other formats and audio extraction use CPU encoding.
+
+<details>
+<summary><strong>Supported GPU encoders</strong></summary>
 
 | GPU Vendor | Encoder | Requirements |
 |---|---|---|
@@ -110,7 +162,11 @@ The application automatically detects and uses GPU hardware encoders when availa
 | Intel | QSV | Intel iGPU/dGPU + media driver, FFmpeg built with `--enable-libmfx` or `--enable-libvpl` |
 | Linux (generic) | VA-API | VA-API capable GPU + `libva`, FFmpeg built with `--enable-vaapi` |
 
-GPU encoding is used for MP4, MKV, and MOV output. Other formats (AVI, WMV, FLV, WebM) and all audio extraction use CPU encoding. If a GPU encoder is detected but fails at runtime, FFmpeg will report an error — the app does not silently fall back mid-conversion.
+When upscaling, quality settings are automatically increased (lower QP/CRF, slower presets) and a post-processing filter chain is applied (sharpening + denoising) for the best possible output.
+
+</details>
+
+---
 
 ## Configuration
 
@@ -123,9 +179,13 @@ Environment variables can be set in a `.env` file or exported:
 | `MAX_CONTENT_LENGTH` | `0` (unlimited) | Max upload size in bytes (0 = no limit) |
 | `CLEANUP_HOURS` | `24` | Hours before files are auto-deleted |
 
+---
+
 ## Supported Formats
 
-### Video Output Formats
+<details>
+<summary><strong>Video output formats</strong></summary>
+
 | Format | Extension |
 |---|---|
 | MP4 | `.mp4` |
@@ -136,7 +196,11 @@ Environment variables can be set in a `.env` file or exported:
 | FLV | `.flv` |
 | WebM | `.webm` |
 
-### Audio Output Formats
+</details>
+
+<details>
+<summary><strong>Audio output formats</strong></summary>
+
 | Format | Extension |
 |---|---|
 | MP3 | `.mp3` |
@@ -144,6 +208,17 @@ Environment variables can be set in a `.env` file or exported:
 | WAV | `.wav` |
 | FLAC | `.flac` |
 | OGG | `.ogg` |
+
+</details>
+
+<details>
+<summary><strong>Supported input formats</strong></summary>
+
+MP4, AVI, MKV, MOV, WMV, FLV, WebM, M4V, MPEG, MPG, 3GP, OGV, TS, VOB
+
+</details>
+
+---
 
 ## Project Structure
 
@@ -164,6 +239,8 @@ media-converter/
 ├── uploads/            # Temporary upload storage (auto-created)
 └── converted/          # Temporary converted file storage (auto-created)
 ```
+
+---
 
 ## License
 
