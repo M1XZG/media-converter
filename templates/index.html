@@ -525,6 +525,32 @@
             cursor: not-allowed;
         }
 
+        /* Abort Button */
+        .abort-btn {
+            width: 100%;
+            padding: 0.75rem;
+            border: 2px solid var(--error);
+            border-radius: 10px;
+            background: var(--error-bg);
+            color: var(--error);
+            font-weight: 700;
+            font-size: 0.875rem;
+            cursor: pointer;
+            transition: all var(--transition-speed);
+            letter-spacing: 0.02em;
+            margin-top: 0.75rem;
+        }
+
+        .abort-btn:hover {
+            background: var(--error);
+            color: #ffffff;
+        }
+
+        .abort-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
         /* ----------------------------------------------------------------
            Progress
         ---------------------------------------------------------------- */
@@ -568,6 +594,23 @@
             font-size: 0.825rem;
             color: var(--text-muted);
             text-align: center;
+        }
+
+        .progress-details {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.775rem;
+            color: var(--text-muted);
+            margin-top: 0.25rem;
+        }
+
+        .progress-bar-track.large {
+            height: 10px;
+            border-radius: 5px;
+        }
+
+        .progress-bar-fill.large {
+            border-radius: 5px;
         }
 
         /* ----------------------------------------------------------------
@@ -859,10 +902,17 @@
 
             <!-- Conversion Progress -->
             <div class="progress-section" id="convert-progress">
-                <div class="progress-bar-track">
-                    <div class="progress-bar-fill indeterminate" id="convert-progress-fill"></div>
+                <div class="progress-bar-track large">
+                    <div class="progress-bar-fill large" id="convert-progress-fill" style="width: 0%"></div>
                 </div>
-                <div class="progress-text" id="convert-progress-text">Converting… This may take a while for large files.</div>
+                <div class="progress-text" id="convert-progress-text">Starting conversion…</div>
+                <div class="progress-details">
+                    <span id="convert-speed"></span>
+                    <span id="convert-eta"></span>
+                </div>
+                <button class="abort-btn" id="abort-btn" onclick="abortConversion()">
+                    ✖ Abort Conversion
+                </button>
             </div>
 
             <!-- Result -->
@@ -882,6 +932,8 @@
         let currentMode = 'video';
         let currentVideoFormat = 'mp4';
         let currentAudioFormat = 'mp3';
+        let currentDurationSeconds = null;
+        let progressPollInterval = null;
 
         /* ============================================================
            Theme
@@ -1012,6 +1064,7 @@
             document.getElementById('file-duration').textContent = data.duration !== 'Unknown' ? `⏱ ${data.duration}` : '';
             document.getElementById('file-resolution').textContent = data.resolution !== 'N/A' ? `📐 ${data.resolution}` : '';
             document.getElementById('file-info').classList.add('visible');
+            currentDurationSeconds = data.duration_seconds;
         }
 
         /* ============================================================
@@ -1057,6 +1110,13 @@
             btn.disabled = true;
             btn.textContent = 'Converting…';
 
+            // Reset progress UI
+            document.getElementById('convert-progress-fill').style.width = '0%';
+            document.getElementById('convert-progress-fill').classList.remove('indeterminate');
+            document.getElementById('convert-progress-text').textContent = 'Starting conversion…';
+            document.getElementById('convert-speed').textContent = '';
+            document.getElementById('convert-eta').textContent = '';
+            document.getElementById('abort-btn').disabled = false;
             document.getElementById('convert-progress').classList.add('visible');
             document.getElementById('result-section').classList.remove('visible');
             document.getElementById('result-section').innerHTML = '';
@@ -1068,20 +1128,20 @@
                     file_id: currentFileId,
                     format: format,
                     mode: currentMode,
+                    duration_seconds: currentDurationSeconds,
                 }),
             })
             .then(r => r.json().then(data => ({ status: r.status, data })))
             .then(({ status, data }) => {
-                document.getElementById('convert-progress').classList.remove('visible');
-
-                if (status === 200) {
-                    showSuccess(data);
+                if (status === 200 && data.status === 'started') {
+                    // Start polling for progress
+                    startProgressPolling(currentFileId);
                 } else {
+                    document.getElementById('convert-progress').classList.remove('visible');
                     showError('Conversion Failed', data.error || 'An unknown error occurred.');
+                    btn.disabled = false;
+                    btn.textContent = 'Convert Now';
                 }
-
-                btn.disabled = false;
-                btn.textContent = 'Convert Now';
             })
             .catch(() => {
                 document.getElementById('convert-progress').classList.remove('visible');
@@ -1089,6 +1149,95 @@
                 btn.disabled = false;
                 btn.textContent = 'Convert Now';
             });
+        }
+
+        function startProgressPolling(fileId) {
+            // Clear any existing interval
+            if (progressPollInterval) clearInterval(progressPollInterval);
+
+            progressPollInterval = setInterval(() => {
+                fetch(`/progress/${fileId}`)
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data.status === 'converting') {
+                            updateProgressUI(data);
+                        } else if (data.status === 'complete') {
+                            clearInterval(progressPollInterval);
+                            progressPollInterval = null;
+                            document.getElementById('convert-progress-fill').style.width = '100%';
+                            document.getElementById('convert-progress-text').textContent = 'Complete!';
+                            setTimeout(() => {
+                                document.getElementById('convert-progress').classList.remove('visible');
+                                showSuccess(data);
+                                resetConvertButton();
+                            }, 500);
+                        } else if (data.status === 'error') {
+                            clearInterval(progressPollInterval);
+                            progressPollInterval = null;
+                            document.getElementById('convert-progress').classList.remove('visible');
+                            showError('Conversion Failed', data.error || 'An unknown error occurred.');
+                            resetConvertButton();
+                        } else if (data.status === 'aborted') {
+                            clearInterval(progressPollInterval);
+                            progressPollInterval = null;
+                            document.getElementById('convert-progress').classList.remove('visible');
+                            showError('Conversion Aborted', 'The conversion was cancelled.');
+                            resetConvertButton();
+                        }
+                    })
+                    .catch(() => {
+                        // Network error during polling, keep trying
+                    });
+            }, 500);
+        }
+
+        function updateProgressUI(data) {
+            const pct = data.percent || 0;
+            document.getElementById('convert-progress-fill').style.width = pct + '%';
+
+            let text = `Converting… ${pct}%`;
+            document.getElementById('convert-progress-text').textContent = text;
+
+            const speedEl = document.getElementById('convert-speed');
+            const etaEl = document.getElementById('convert-eta');
+
+            if (data.speed && data.speed !== 'N/A') {
+                speedEl.textContent = `Speed: ${data.speed}`;
+            } else {
+                speedEl.textContent = '';
+            }
+
+            if (data.eta) {
+                etaEl.textContent = `ETA: ${data.eta}`;
+            } else {
+                etaEl.textContent = '';
+            }
+        }
+
+        function resetConvertButton() {
+            const btn = document.getElementById('convert-btn');
+            btn.disabled = false;
+            btn.textContent = 'Convert Now';
+        }
+
+        /* ============================================================
+           Abort
+        ============================================================ */
+        function abortConversion() {
+            if (!currentFileId) return;
+
+            const abortBtn = document.getElementById('abort-btn');
+            abortBtn.disabled = true;
+            abortBtn.textContent = 'Aborting…';
+
+            fetch(`/abort/${currentFileId}`, { method: 'POST' })
+                .then(r => r.json())
+                .then(data => {
+                    // Polling will pick up the aborted status
+                })
+                .catch(() => {
+                    // Polling will handle the state
+                });
         }
 
         /* ============================================================
@@ -1132,10 +1281,17 @@
            Reset
         ============================================================ */
         function resetAll() {
+            // Stop any active polling
+            if (progressPollInterval) {
+                clearInterval(progressPollInterval);
+                progressPollInterval = null;
+            }
+
             currentFileId = null;
             currentMode = 'video';
             currentVideoFormat = 'mp4';
             currentAudioFormat = 'mp3';
+            currentDurationSeconds = null;
 
             // Reset UI
             dropZone.style.display = '';

@@ -7,6 +7,8 @@ import uuid
 import subprocess
 import json
 import shutil
+import re
+import threading
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -62,6 +64,9 @@ app.config["MAX_CONTENT_LENGTH"] = int(os.environ.get("MAX_CONTENT_LENGTH", 0)) 
 
 UPLOAD_FOLDER.mkdir(exist_ok=True)
 CONVERTED_FOLDER.mkdir(exist_ok=True)
+
+# Active conversion jobs: file_id -> job dict
+_active_jobs: dict[str, dict] = {}
 
 
 # ---------------------------------------------------------------------------
@@ -275,6 +280,7 @@ def upload():
         "original_name": original_name,
         "size": _human_size(file_size),
         "duration": _human_duration(duration) if duration else "Unknown",
+        "duration_seconds": duration,
         "video_codec": video_codec or "N/A",
         "audio_codec": audio_codec or "N/A",
         "resolution": resolution or "N/A",
@@ -283,7 +289,7 @@ def upload():
 
 @app.route("/convert", methods=["POST"])
 def convert():
-    """Convert an uploaded file to the requested format."""
+    """Start conversion of an uploaded file (non-blocking)."""
     data = request.get_json()
     if not data:
         return jsonify({"error": "Invalid request."}), 400
@@ -291,9 +297,14 @@ def convert():
     file_id = data.get("file_id")
     output_format = data.get("format", "").lower()
     mode = data.get("mode", "video")  # "video" or "audio"
+    total_duration = data.get("duration_seconds")  # seconds, from upload probe
 
     if not file_id or not output_format:
         return jsonify({"error": "Missing file_id or format."}), 400
+
+    # Reject if a conversion is already running for this file
+    if file_id in _active_jobs and _active_jobs[file_id]["status"] == "converting":
+        return jsonify({"error": "A conversion is already in progress for this file."}), 409
 
     # Find the uploaded file
     source_file = None
@@ -353,7 +364,6 @@ def convert():
     else:
         # Video conversion — prefer GPU encoder when available
         if output_format in ("mp4", "mkv", "mov") and gpu:
-            # These containers support H.264 from hardware encoders
             enc = gpu["h264"]
             if gpu["name"] == "nvenc":
                 cmd.extend(["-codec:v", enc, "-preset", "p4", "-rc", "vbr",
@@ -374,7 +384,6 @@ def convert():
             cmd.extend(["-codec:v", "libx264", "-preset", "medium", "-crf", "23",
                         "-codec:a", "aac", "-b:a", "192k", "-movflags", "+faststart"])
         elif output_format == "webm":
-            # VP9 — no widespread GPU encoder, use software
             cmd.extend(["-codec:v", "libvpx-vp9", "-crf", "30", "-b:v", "0",
                         "-codec:a", "libopus", "-b:a", "128k"])
         elif output_format == "mkv":
@@ -393,30 +402,163 @@ def convert():
             cmd.extend(["-codec:v", "flv1", "-b:v", "2M",
                         "-codec:a", "libmp3lame", "-q:a", "4"])
 
+    # Add progress output flag (machine-readable to stdout)
+    cmd.extend(["-progress", "pipe:1", "-nostats"])
     cmd.append(str(output_path))
 
-    try:
-        result = subprocess.run(
-            cmd,
-            capture_output=True, text=True,
-            timeout=7200,  # 2 hour timeout for large files
-        )
-        if result.returncode != 0:
-            error_msg = result.stderr.strip().split("\n")[-1] if result.stderr else "Conversion failed."
-            return jsonify({"error": f"FFmpeg error: {error_msg}"}), 500
-    except subprocess.TimeoutExpired:
-        return jsonify({"error": "Conversion timed out (exceeded 2 hours)."}), 504
-    except FileNotFoundError:
-        return jsonify({"error": "FFmpeg is not installed or not found on PATH."}), 500
-
-    output_size = output_path.stat().st_size
-
-    return jsonify({
-        "download_id": output_name,
-        "output_size": _human_size(output_size),
-        "gpu_used": hw_accel_used,
+    # Initialize job tracking
+    job = {
+        "status": "converting",
+        "percent": 0,
+        "speed": "",
+        "eta": "",
+        "error": None,
+        "output_path": str(output_path),
+        "output_name": output_name,
+        "hw_accel_used": hw_accel_used,
         "gpu_label": gpu.get("label", "") if hw_accel_used else "",
-    })
+        "process": None,
+        "duration": total_duration or 0,
+    }
+    _active_jobs[file_id] = job
+
+    def _run_conversion():
+        """Run FFmpeg in the background, parsing progress output."""
+        try:
+            proc = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                bufsize=1,
+            )
+            job["process"] = proc
+
+            dur = job["duration"]
+
+            # Read progress from stdout line by line
+            for line in proc.stdout:
+                line = line.strip()
+                if job["status"] == "aborted":
+                    break
+
+                if line.startswith("out_time_us="):
+                    try:
+                        us = int(line.split("=", 1)[1])
+                        current_secs = us / 1_000_000
+                        if dur and dur > 0:
+                            pct = min(int((current_secs / dur) * 100), 99)
+                            job["percent"] = pct
+                    except (ValueError, ZeroDivisionError):
+                        pass
+                elif line.startswith("speed="):
+                    spd = line.split("=", 1)[1].strip()
+                    job["speed"] = spd
+                    # Estimate ETA
+                    if dur and dur > 0 and spd and spd != "N/A":
+                        try:
+                            spd_num = float(spd.rstrip("x"))
+                            if spd_num > 0:
+                                current_secs = (job["percent"] / 100) * dur
+                                remaining = (dur - current_secs) / spd_num
+                                job["eta"] = _human_duration(remaining)
+                        except (ValueError, ZeroDivisionError):
+                            pass
+                elif line.startswith("progress=end"):
+                    break
+
+            proc.wait(timeout=7200)
+
+            if job["status"] == "aborted":
+                return  # already handled by abort endpoint
+
+            if proc.returncode != 0:
+                stderr_out = proc.stderr.read() if proc.stderr else ""
+                error_msg = stderr_out.strip().split("\n")[-1] if stderr_out else "Conversion failed."
+                job["status"] = "error"
+                job["error"] = f"FFmpeg error: {error_msg}"
+            else:
+                job["status"] = "complete"
+                job["percent"] = 100
+                job["output_size"] = _human_size(Path(job["output_path"]).stat().st_size)
+
+        except subprocess.TimeoutExpired:
+            job["status"] = "error"
+            job["error"] = "Conversion timed out (exceeded 2 hours)."
+            try:
+                proc.kill()
+            except Exception:
+                pass
+        except FileNotFoundError:
+            job["status"] = "error"
+            job["error"] = "FFmpeg is not installed or not found on PATH."
+        except Exception as e:
+            job["status"] = "error"
+            job["error"] = f"Unexpected error: {str(e)}"
+
+    thread = threading.Thread(target=_run_conversion, daemon=True)
+    thread.start()
+
+    return jsonify({"status": "started", "file_id": file_id})
+
+
+@app.route("/progress/<file_id>")
+def progress(file_id):
+    """Poll conversion progress for a given file."""
+    job = _active_jobs.get(file_id)
+    if not job:
+        return jsonify({"status": "not_found"}), 404
+
+    resp = {
+        "status": job["status"],
+        "percent": job["percent"],
+        "speed": job["speed"],
+        "eta": job["eta"],
+    }
+
+    if job["status"] == "complete":
+        resp["download_id"] = job["output_name"]
+        resp["output_size"] = job.get("output_size", "")
+        resp["gpu_used"] = job["hw_accel_used"]
+        resp["gpu_label"] = job["gpu_label"]
+    elif job["status"] == "error":
+        resp["error"] = job["error"]
+    elif job["status"] == "aborted":
+        resp["error"] = "Conversion was aborted."
+
+    return jsonify(resp)
+
+
+@app.route("/abort/<file_id>", methods=["POST"])
+def abort_conversion(file_id):
+    """Abort an in-progress conversion and clean up."""
+    job = _active_jobs.get(file_id)
+    if not job:
+        return jsonify({"error": "No active conversion found."}), 404
+
+    if job["status"] != "converting":
+        return jsonify({"error": "Conversion is not in progress."}), 400
+
+    job["status"] = "aborted"
+
+    # Kill the FFmpeg process
+    proc = job.get("process")
+    if proc:
+        try:
+            proc.kill()
+            proc.wait(timeout=5)
+        except Exception:
+            pass
+
+    # Delete partial output file
+    try:
+        output = Path(job["output_path"])
+        if output.exists():
+            output.unlink()
+    except OSError:
+        pass
+
+    return jsonify({"status": "aborted"})
 
 
 @app.route("/download/<download_id>")
