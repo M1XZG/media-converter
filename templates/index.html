@@ -915,7 +915,7 @@
                 <div class="drop-zone-icon">📤</div>
                 <div class="drop-zone-text">Drop your video file here</div>
                 <div class="drop-zone-hint">or <strong onclick="document.getElementById('file-input').click()">browse files</strong></div>
-                <input type="file" id="file-input" accept=".mp4,.avi,.mkv,.mov,.wmv,.flv,.webm,.m4v,.mpeg,.mpg,.3gp,.ogv,.ts,.vob">
+                <input type="file" id="file-input" multiple accept=".mp4,.avi,.mkv,.mov,.wmv,.flv,.webm,.m4v,.mpeg,.mpg,.3gp,.ogv,.ts,.vob">
             </div>
 
             <!-- Upload Progress -->
@@ -926,21 +926,8 @@
                 <div class="progress-text" id="upload-progress-text">Uploading… 0%</div>
             </div>
 
-            <!-- File Info -->
-            <div class="file-info" id="file-info">
-                <div class="file-card">
-                    <div class="file-icon">🎥</div>
-                    <div class="file-details">
-                        <div class="file-name" id="file-name"></div>
-                        <div class="file-meta">
-                            <span id="file-size"></span>
-                            <span id="file-duration"></span>
-                            <span id="file-resolution"></span>
-                        </div>
-                    </div>
-                    <button class="file-remove" onclick="resetAll()" title="Remove file">✕</button>
-                </div>
-            </div>
+            <!-- File Info (multiple files supported) -->
+            <div class="file-info" id="file-info"></div>
 
             <!-- Conversion Options -->
             <div class="convert-options" id="convert-options">
@@ -1017,15 +1004,12 @@
         /* ============================================================
            State
         ============================================================ */
-        let currentFileId = null;
+        // Multiple file support
+        let filesState = [];
+        let progressPollInterval = null;
         let currentMode = 'video';
         let currentVideoFormat = 'mp4';
         let currentAudioFormat = 'mp3';
-        let currentDurationSeconds = null;
-        let currentResolution = null;  // null = original
-        let sourceWidth = null;
-        let sourceHeight = null;
-        let progressPollInterval = null;
 
         /* ============================================================
            Resolution Presets
@@ -1080,15 +1064,21 @@
             e.preventDefault();
             dropZone.classList.remove('drag-over');
             if (e.dataTransfer.files.length > 0) {
-                uploadFile(e.dataTransfer.files[0]);
+                handleFilesUpload(e.dataTransfer.files);
             }
         });
 
         fileInput.addEventListener('change', () => {
             if (fileInput.files.length > 0) {
-                uploadFile(fileInput.files[0]);
+                handleFilesUpload(fileInput.files);
             }
         });
+
+        function handleFilesUpload(fileList) {
+            // Convert FileList to Array
+            const files = Array.from(fileList);
+            files.forEach(file => uploadFile(file));
+        }
 
         /* ============================================================
            Upload
@@ -1102,7 +1092,7 @@
                 return;
             }
 
-            // Hide drop zone, show upload progress
+            // Hide drop zone if at least one file is uploading
             dropZone.style.display = 'none';
             showUploadProgress();
 
@@ -1122,10 +1112,38 @@
             xhr.addEventListener('load', () => {
                 hideUploadProgress();
                 if (xhr.status === 200) {
-                    const data = JSON.parse(xhr.responseText);
-                    currentFileId = data.file_id;
-                    showFileInfo(data);
-                    showConvertOptions();
+                    let data = JSON.parse(xhr.responseText);
+                    // If response is an array, handle multiple files
+                    if (Array.isArray(data)) {
+                        data.forEach(fileData => filesState.push({
+                            file_id: fileData.file_id,
+                            original_name: fileData.original_name,
+                            size: fileData.size,
+                            duration: fileData.duration,
+                            duration_seconds: fileData.duration_seconds,
+                            video_codec: fileData.video_codec,
+                            audio_codec: fileData.audio_codec,
+                            resolution: fileData.resolution,
+                            width: fileData.width,
+                            height: fileData.height,
+                            status: 'uploaded',
+                        }));
+                    } else {
+                        filesState.push({
+                            file_id: data.file_id,
+                            original_name: data.original_name,
+                            size: data.size,
+                            duration: data.duration,
+                            duration_seconds: data.duration_seconds,
+                            video_codec: data.video_codec,
+                            audio_codec: data.audio_codec,
+                            resolution: data.resolution,
+                            width: data.width,
+                            height: data.height,
+                            status: 'uploaded',
+                        });
+                    }
+                    renderFilesList();
                 } else {
                     let msg = 'Upload failed.';
                     try { msg = JSON.parse(xhr.responseText).error; } catch {}
@@ -1141,6 +1159,140 @@
             });
 
             xhr.send(formData);
+        }
+
+        // Render multiple file cards
+        function renderFilesList() {
+            const infoSection = document.getElementById('file-info');
+            infoSection.innerHTML = '';
+            if (filesState.length === 0) {
+                infoSection.classList.remove('visible');
+                dropZone.style.display = '';
+                return;
+            }
+            infoSection.classList.add('visible');
+            filesState.forEach((file, idx) => {
+                const card = document.createElement('div');
+                card.className = 'file-card';
+                card.innerHTML = `
+                    <div class="file-icon">🎥</div>
+                    <div class="file-details">
+                        <div class="file-name">${file.original_name}</div>
+                        <div class="file-meta">
+                            <span>${file.size}</span>
+                            <span>${file.duration !== 'Unknown' ? '⏱ ' + file.duration : ''}</span>
+                            <span>${file.resolution !== 'N/A' ? '📐 ' + file.resolution : ''}</span>
+                        </div>
+                        <div class="file-actions">
+                            <button class="convert-btn" onclick="startFileConversion(${idx})">Convert</button>
+                            <a class="download-link" id="download-link-${file.file_id}" style="display:none" download>Download</a>
+                        </div>
+                        <div class="progress-section" id="progress-section-${file.file_id}" style="display:none">
+                            <div class="progress-bar-track">
+                                <div class="progress-bar-fill" id="progress-bar-fill-${file.file_id}" style="width:0%"></div>
+                            </div>
+                            <div class="progress-text" id="progress-text-${file.file_id}"></div>
+                        </div>
+                    </div>
+                    <button class="file-remove" onclick="removeFile(${idx})" title="Remove file">✕</button>
+                `;
+                infoSection.appendChild(card);
+            });
+
+        }
+
+        // Per-file conversion logic
+        function startFileConversion(idx) {
+            const file = filesState[idx];
+            const btn = document.querySelectorAll('.file-card .convert-btn')[idx];
+            const progressSection = document.getElementById(`progress-section-${file.file_id}`);
+            const progressBar = document.getElementById(`progress-bar-fill-${file.file_id}`);
+            const progressText = document.getElementById(`progress-text-${file.file_id}`);
+            btn.disabled = true;
+            btn.textContent = 'Converting…';
+            progressSection.style.display = '';
+            progressBar.style.width = '0%';
+            progressText.textContent = 'Starting…';
+
+            fetch('/convert', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    file_id: file.file_id,
+                    format: currentMode === 'video' ? currentVideoFormat : currentAudioFormat,
+                    mode: currentMode,
+                    duration_seconds: file.duration_seconds,
+                    resolution: file.resolution !== 'N/A' ? file.resolution : null,
+                }),
+            })
+            .then(r => r.json().then(data => ({ status: r.status, data })))
+            .then(({ status, data }) => {
+                if (status === 200 && data.status === 'started') {
+                    pollFileProgress(file.file_id, btn, progressBar, progressText, progressSection, idx);
+                } else {
+                    progressSection.style.display = 'none';
+                    btn.disabled = false;
+                    btn.textContent = 'Convert';
+                    showError('Conversion Failed', data.error || 'An unknown error occurred.');
+                }
+            })
+            .catch(() => {
+                progressSection.style.display = 'none';
+                btn.disabled = false;
+                btn.textContent = 'Convert';
+                showError('Conversion Failed', 'A network error occurred. Please try again.');
+            });
+        }
+
+        function pollFileProgress(fileId, btn, progressBar, progressText, progressSection, idx) {
+            let interval = setInterval(() => {
+                fetch(`/progress/${fileId}`)
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data.status === 'converting') {
+                            const pct = data.percent || 0;
+                            progressBar.style.width = pct + '%';
+                            progressText.textContent = `Converting… ${pct}%`;
+                        } else if (data.status === 'complete') {
+                            clearInterval(interval);
+                            progressBar.style.width = '100%';
+                            progressText.textContent = 'Complete!';
+                            btn.textContent = 'Download';
+                            btn.disabled = false;
+                            btn.onclick = function() { downloadFile(data.download_id, idx); };
+                            // Show download link
+                            const link = document.getElementById(`download-link-${fileId}`);
+                            link.style.display = '';
+                            link.href = `/download/${data.download_id}`;
+                            link.textContent = 'Download';
+                        } else if (data.status === 'error') {
+                            clearInterval(interval);
+                            progressSection.style.display = 'none';
+                            btn.disabled = false;
+                            btn.textContent = 'Convert';
+                            showError('Conversion Failed', data.error || 'An unknown error occurred.');
+                        } else if (data.status === 'aborted') {
+                            clearInterval(interval);
+                            progressSection.style.display = 'none';
+                            btn.disabled = false;
+                            btn.textContent = 'Convert';
+                            showError('Conversion Aborted', 'The conversion was cancelled.');
+                        }
+                    })
+                    .catch(() => {});
+            }, 500);
+        }
+
+        function downloadFile(downloadId, idx) {
+            const link = document.getElementById(`download-link-${filesState[idx].file_id}`);
+            link.href = `/download/${downloadId}`;
+            link.click();
+        }
+        }
+
+        function removeFile(idx) {
+            filesState.splice(idx, 1);
+            renderFilesList();
         }
 
         function showUploadProgress() {

@@ -227,66 +227,71 @@ def index():
 
 @app.route("/upload", methods=["POST"])
 def upload():
-    """Handle file upload and return file metadata."""
-    if "file" not in request.files:
+    """Handle file upload and return file metadata. Supports multiple files."""
+    if not request.files:
         return jsonify({"error": "No file provided."}), 400
 
-    file = request.files["file"]
-    if file.filename == "" or file.filename is None:
-        return jsonify({"error": "No file selected."}), 400
+    files = request.files.getlist("file")
+    if not files:
+        # Fallback for single file upload (old clients)
+        file = request.files.get("file")
+        if not file:
+            return jsonify({"error": "No file provided."}), 400
+        files = [file]
 
-    if not allowed_file(file.filename):
-        return jsonify({"error": f"Unsupported file type. Allowed: {', '.join(sorted(ALLOWED_INPUT_EXTENSIONS))}"}), 400
+    results = []
+    for file in files:
+        if file.filename == "" or file.filename is None:
+            continue
+        if not allowed_file(file.filename):
+            continue
+        file_id = uuid.uuid4().hex
+        original_name = secure_filename(file.filename)
+        ext = Path(original_name).suffix.lower()
+        stored_name = f"{file_id}{ext}"
+        filepath = UPLOAD_FOLDER / stored_name
+        file.save(str(filepath))
+        probe = _probe_file(filepath)
+        file_size = filepath.stat().st_size
+        duration = None
+        video_codec = None
+        audio_codec = None
+        resolution = None
+        if probe:
+            fmt = probe.get("format", {})
+            duration_str = fmt.get("duration")
+            if duration_str:
+                try:
+                    duration = float(duration_str)
+                except (ValueError, TypeError):
+                    pass
+            for stream in probe.get("streams", []):
+                if stream.get("codec_type") == "video" and not video_codec:
+                    video_codec = stream.get("codec_name", "unknown")
+                    w = stream.get("width")
+                    h = stream.get("height")
+                    if w and h:
+                        resolution = f"{w}x{h}"
+                elif stream.get("codec_type") == "audio" and not audio_codec:
+                    audio_codec = stream.get("codec_name", "unknown")
+        results.append({
+            "file_id": file_id,
+            "original_name": original_name,
+            "size": _human_size(file_size),
+            "duration": _human_duration(duration) if duration else "Unknown",
+            "duration_seconds": duration,
+            "video_codec": video_codec or "N/A",
+            "audio_codec": audio_codec or "N/A",
+            "resolution": resolution or "N/A",
+            "width": int(resolution.split("x")[0]) if resolution else None,
+            "height": int(resolution.split("x")[1]) if resolution else None,
+        })
 
-    # Generate a unique ID for this upload
-    file_id = uuid.uuid4().hex
-    original_name = secure_filename(file.filename)
-    ext = Path(original_name).suffix.lower()
-    stored_name = f"{file_id}{ext}"
-    filepath = UPLOAD_FOLDER / stored_name
-
-    file.save(str(filepath))
-
-    # Probe the file for metadata
-    probe = _probe_file(filepath)
-    file_size = filepath.stat().st_size
-
-    duration = None
-    video_codec = None
-    audio_codec = None
-    resolution = None
-
-    if probe:
-        fmt = probe.get("format", {})
-        duration_str = fmt.get("duration")
-        if duration_str:
-            try:
-                duration = float(duration_str)
-            except (ValueError, TypeError):
-                pass
-
-        for stream in probe.get("streams", []):
-            if stream.get("codec_type") == "video" and not video_codec:
-                video_codec = stream.get("codec_name", "unknown")
-                w = stream.get("width")
-                h = stream.get("height")
-                if w and h:
-                    resolution = f"{w}x{h}"
-            elif stream.get("codec_type") == "audio" and not audio_codec:
-                audio_codec = stream.get("codec_name", "unknown")
-
-    return jsonify({
-        "file_id": file_id,
-        "original_name": original_name,
-        "size": _human_size(file_size),
-        "duration": _human_duration(duration) if duration else "Unknown",
-        "duration_seconds": duration,
-        "video_codec": video_codec or "N/A",
-        "audio_codec": audio_codec or "N/A",
-        "resolution": resolution or "N/A",
-        "width": int(resolution.split("x")[0]) if resolution else None,
-        "height": int(resolution.split("x")[1]) if resolution else None,
-    })
+    if len(results) == 0:
+        return jsonify({"error": "No valid files uploaded."}), 400
+    if len(results) == 1:
+        return jsonify(results[0])
+    return jsonify(results)
 
 
 @app.route("/convert", methods=["POST"])
