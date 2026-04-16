@@ -22,6 +22,14 @@ if errorlevel 1 (
     echo.
 )
 
+:: Check for yt-dlp
+yt-dlp --version >nul 2>&1
+if errorlevel 1 (
+    echo [WARNING] yt-dlp is not installed or not on PATH yet.
+    echo It will be installed into the virtual environment from requirements.
+    echo.
+)
+
 :: Create virtual environment if it doesn't exist
 if not exist "venv" (
     echo Creating virtual environment...
@@ -41,6 +49,8 @@ echo.
 :: Create directories
 if not exist "uploads" mkdir uploads
 if not exist "converted" mkdir converted
+if not exist "downloads" mkdir downloads
+if not exist "downloads\youtube" mkdir downloads\youtube
 
 :: Run the app
 echo ============================================

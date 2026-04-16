@@ -120,6 +120,30 @@
             margin-bottom: 2rem;
         }
 
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+        }
+
+        .header-link {
+            border: 1px solid var(--border-color);
+            background: var(--bg-card);
+            color: var(--text-secondary);
+            border-radius: 10px;
+            padding: 0.55rem 0.7rem;
+            text-decoration: none;
+            font-size: 0.78rem;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+            transition: all var(--transition-speed);
+        }
+
+        .header-link:hover {
+            border-color: var(--accent);
+            color: var(--text-primary);
+        }
+
         .logo {
             display: flex;
             align-items: center;
@@ -799,6 +823,172 @@
         }
 
         /* ----------------------------------------------------------------
+           YouTube Downloader
+        ---------------------------------------------------------------- */
+        .section-divider {
+            height: 1px;
+            background: var(--border-color);
+            margin: 1.5rem 0;
+        }
+
+        .youtube-section-title {
+            font-size: 0.95rem;
+            font-weight: 700;
+            margin-bottom: 0.35rem;
+        }
+
+        .youtube-section-subtitle {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-bottom: 0.9rem;
+        }
+
+        .youtube-input-row {
+            display: flex;
+            gap: 0.6rem;
+            align-items: center;
+        }
+
+        .youtube-url-input {
+            flex: 1;
+            min-width: 0;
+            padding: 0.78rem 0.85rem;
+            border: 2px solid var(--border-color);
+            border-radius: 10px;
+            background: var(--bg-input);
+            color: var(--text-primary);
+            font-size: 0.88rem;
+            outline: none;
+            transition: border-color var(--transition-speed), box-shadow var(--transition-speed);
+        }
+
+        .youtube-url-input:focus {
+            border-color: var(--border-focus);
+            box-shadow: 0 0 0 3px var(--accent-glow);
+        }
+
+        .youtube-download-btn {
+            border: none;
+            border-radius: 10px;
+            background: var(--accent);
+            color: #fff;
+            padding: 0.78rem 1rem;
+            font-weight: 700;
+            font-size: 0.84rem;
+            cursor: pointer;
+            transition: all var(--transition-speed);
+            white-space: nowrap;
+        }
+
+        .youtube-download-btn:hover:not(:disabled) {
+            background: var(--accent-hover);
+        }
+
+        .youtube-download-btn:disabled {
+            opacity: 0.55;
+            cursor: not-allowed;
+        }
+
+        .youtube-result {
+            margin-top: 0.9rem;
+        }
+
+        .youtube-mode-tabs {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 0.8rem;
+        }
+
+        .youtube-mode-tab {
+            flex: 1;
+            border: 2px solid var(--border-color);
+            border-radius: 10px;
+            background: var(--bg-input);
+            color: var(--text-secondary);
+            padding: 0.58rem;
+            font-size: 0.82rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all var(--transition-speed);
+        }
+
+        .youtube-mode-tab.active {
+            border-color: var(--accent);
+            background: var(--accent-glow);
+            color: var(--accent);
+        }
+
+        .youtube-select-row {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 0.6rem;
+            margin-top: 0.75rem;
+        }
+
+        .youtube-select-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.3rem;
+        }
+
+        .youtube-select-group label {
+            font-size: 0.74rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-weight: 700;
+        }
+
+        .youtube-select {
+            width: 100%;
+            padding: 0.64rem 0.7rem;
+            border: 2px solid var(--border-color);
+            border-radius: 10px;
+            background: var(--bg-input);
+            color: var(--text-primary);
+            font-size: 0.82rem;
+            outline: none;
+            transition: all var(--transition-speed);
+        }
+
+        .youtube-select:focus {
+            border-color: var(--border-focus);
+        }
+
+        .youtube-actions {
+            display: flex;
+            gap: 0.55rem;
+            margin-top: 0.7rem;
+        }
+
+        .youtube-abort-btn {
+            border: 2px solid var(--error);
+            background: var(--error-bg);
+            color: var(--error);
+            border-radius: 10px;
+            padding: 0.78rem 0.92rem;
+            font-size: 0.82rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all var(--transition-speed);
+            display: none;
+        }
+
+        .youtube-abort-btn.visible {
+            display: inline-block;
+        }
+
+        .youtube-abort-btn:hover:not(:disabled) {
+            background: var(--error);
+            color: #ffffff;
+        }
+
+        .youtube-abort-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* ----------------------------------------------------------------
            Footer
         ---------------------------------------------------------------- */
         footer {
@@ -827,6 +1017,19 @@
             .format-grid {
                 grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
             }
+
+            .youtube-input-row {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .youtube-select-row {
+                grid-template-columns: 1fr;
+            }
+
+            .youtube-actions {
+                flex-direction: column;
+            }
         }
     </style>
 </head>
@@ -838,9 +1041,12 @@
                 <div class="logo-icon">🎬</div>
                 <h1>Media Converter</h1>
             </div>
-            <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme" aria-label="Toggle light/dark theme">
-                <span id="theme-icon">☀️</span>
-            </button>
+            <div class="header-actions">
+                <a class="header-link" href="/files">Media Library</a>
+                <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme" aria-label="Toggle light/dark theme">
+                    <span id="theme-icon">☀️</span>
+                </button>
+            </div>
         </header>
 
         <!-- Info Banner -->
@@ -857,7 +1063,7 @@
                 </div>
                 <div class="info-item">
                     <span class="icon">🕐</span>
-                    <span><strong>Auto-cleanup</strong> — files deleted after 24 hours</span>
+                    <span><strong>Auto-cleanup</strong> — temp uploads/conversions deleted after 24 hours</span>
                 </div>
                 <div class="info-item">
                     <span class="icon">🔒</span>
@@ -905,6 +1111,13 @@
         <div class="ffmpeg-warning">
             <span>⚠️</span>
             <span><strong>FFmpeg not found.</strong> Please install FFmpeg and make sure it's on your system PATH. Conversions will fail without it.</span>
+        </div>
+        {% endif %}
+
+        {% if not ytdlp_ok %}
+        <div class="ffmpeg-warning" style="margin-top: -1rem;">
+            <span>⚠️</span>
+            <span><strong>yt-dlp not found.</strong> YouTube downloads will fail without yt-dlp on your system PATH.</span>
         </div>
         {% endif %}
 
@@ -1006,10 +1219,74 @@
 
             <!-- Result -->
             <div class="result-section" id="result-section"></div>
+
+            <div class="section-divider"></div>
+
+            <!-- YouTube Downloader -->
+            <div id="youtube-section">
+                <div class="youtube-section-title">Download from YouTube</div>
+                <div class="youtube-section-subtitle">Download video or audio and save permanently under downloads/youtube.</div>
+
+                <div class="youtube-input-row">
+                    <input
+                        id="youtube-url"
+                        class="youtube-url-input"
+                        type="url"
+                        placeholder="https://www.youtube.com/watch?v=..."
+                        autocomplete="off"
+                    >
+                </div>
+
+                <div class="youtube-mode-tabs">
+                    <button type="button" class="youtube-mode-tab active" data-youtube-mode="video" onclick="setYoutubeMode('video')">🎬 Video</button>
+                    <button type="button" class="youtube-mode-tab" data-youtube-mode="audio" onclick="setYoutubeMode('audio')">🎵 Audio</button>
+                </div>
+
+                <div class="youtube-select-row">
+                    <div class="youtube-select-group">
+                        <label for="youtube-quality">Video Quality</label>
+                        <select id="youtube-quality" class="youtube-select">
+                            {% for key, label in youtube_quality_options.items() %}
+                            <option value="{{ key }}">{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="youtube-select-group" id="youtube-audio-group" style="display: none;">
+                        <label for="youtube-audio-format">Audio Format</label>
+                        <select id="youtube-audio-format" class="youtube-select">
+                            <option value="mp3">MP3</option>
+                            <option value="aac">AAC</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="youtube-actions">
+                    <button class="youtube-download-btn" id="youtube-download-btn" onclick="startYoutubeDownload()">
+                        Download
+                    </button>
+                    <button class="youtube-abort-btn" id="youtube-abort-btn" onclick="abortYoutubeDownload()">
+                        Abort Download
+                    </button>
+                </div>
+
+                <div class="progress-section" id="youtube-progress" style="margin-top: 0.85rem;">
+                    <div class="progress-bar-track">
+                        <div class="progress-bar-fill" id="youtube-progress-fill"></div>
+                    </div>
+                    <div class="progress-text" id="youtube-progress-text">Starting download...</div>
+                    <div class="progress-details">
+                        <span id="youtube-downloaded"></span>
+                        <span id="youtube-speed"></span>
+                        <span id="youtube-eta"></span>
+                    </div>
+                </div>
+
+                <div id="youtube-result" class="youtube-result"></div>
+            </div>
         </div>
 
         <footer>
-            Media Converter &middot; Self-hosted &middot; Files auto-delete after 24 hours
+            Media Converter &middot; Self-hosted &middot; Temp files auto-delete after 24 hours
         </footer>
     </div>
 
@@ -1026,6 +1303,9 @@
         let sourceWidth = null;
         let sourceHeight = null;
         let progressPollInterval = null;
+        let youtubeJobId = null;
+        let youtubePollInterval = null;
+        let youtubeMode = 'video';
 
         /* ============================================================
            Resolution Presets
@@ -1461,6 +1741,181 @@
         }
 
         /* ============================================================
+           YouTube Downloader
+        ============================================================ */
+        function startYoutubeDownload() {
+            const input = document.getElementById('youtube-url');
+            const url = input.value.trim();
+            const btn = document.getElementById('youtube-download-btn');
+            const abortBtn = document.getElementById('youtube-abort-btn');
+            const result = document.getElementById('youtube-result');
+            const quality = document.getElementById('youtube-quality').value;
+            const audioFormat = document.getElementById('youtube-audio-format').value;
+
+            if (!url) {
+                result.innerHTML = `
+                    <div class="result-error">
+                        <div class="result-message">Please enter a YouTube URL.</div>
+                    </div>
+                `;
+                return;
+            }
+
+            result.innerHTML = '';
+            btn.disabled = true;
+            btn.textContent = 'Starting...';
+            abortBtn.classList.add('visible');
+            abortBtn.disabled = false;
+            abortBtn.textContent = 'Abort Download';
+
+            document.getElementById('youtube-progress-fill').style.width = '0%';
+            document.getElementById('youtube-progress-text').textContent = 'Starting download...';
+            document.getElementById('youtube-downloaded').textContent = '';
+            document.getElementById('youtube-speed').textContent = '';
+            document.getElementById('youtube-eta').textContent = '';
+            document.getElementById('youtube-progress').classList.add('visible');
+
+            fetch('/youtube/download', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    url,
+                    mode: youtubeMode,
+                    quality,
+                    audio_format: audioFormat,
+                }),
+            })
+            .then(r => r.json().then(data => ({ status: r.status, data })))
+            .then(({ status, data }) => {
+                if (status === 200 && data.status === 'started') {
+                    youtubeJobId = data.job_id;
+                    btn.textContent = 'Downloading...';
+                    startYoutubePolling(youtubeJobId);
+                } else {
+                    document.getElementById('youtube-progress').classList.remove('visible');
+                    showYoutubeError(data.error || 'Unable to start YouTube download.');
+                    btn.disabled = false;
+                    btn.textContent = 'Download';
+                    abortBtn.classList.remove('visible');
+                }
+            })
+            .catch(() => {
+                document.getElementById('youtube-progress').classList.remove('visible');
+                showYoutubeError('A network error occurred. Please try again.');
+                btn.disabled = false;
+                btn.textContent = 'Download';
+                abortBtn.classList.remove('visible');
+            });
+        }
+
+        function setYoutubeMode(mode) {
+            youtubeMode = mode === 'audio' ? 'audio' : 'video';
+            document.querySelectorAll('.youtube-mode-tab').forEach((tab) => {
+                tab.classList.toggle('active', tab.dataset.youtubeMode === youtubeMode);
+            });
+
+            const quality = document.getElementById('youtube-quality');
+            const qualityLabel = document.querySelector('label[for="youtube-quality"]');
+            const audioGroup = document.getElementById('youtube-audio-group');
+
+            if (youtubeMode === 'audio') {
+                quality.disabled = true;
+                qualityLabel.style.opacity = '0.5';
+                audioGroup.style.display = '';
+            } else {
+                quality.disabled = false;
+                qualityLabel.style.opacity = '1';
+                audioGroup.style.display = 'none';
+            }
+        }
+
+        function startYoutubePolling(jobId) {
+            if (youtubePollInterval) {
+                clearInterval(youtubePollInterval);
+            }
+
+            youtubePollInterval = setInterval(() => {
+                fetch(`/youtube/progress/${jobId}`)
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data.status === 'downloading') {
+                            const pct = data.percent || 0;
+                            document.getElementById('youtube-progress-fill').style.width = pct + '%';
+                            document.getElementById('youtube-progress-text').textContent = `Downloading... ${pct}%`;
+                            if (data.downloaded_size && data.total_size) {
+                                document.getElementById('youtube-downloaded').textContent = `Downloaded: ${data.downloaded_size} / ${data.total_size}`;
+                            } else if (data.downloaded_size) {
+                                document.getElementById('youtube-downloaded').textContent = `Downloaded: ${data.downloaded_size}`;
+                            } else {
+                                document.getElementById('youtube-downloaded').textContent = '';
+                            }
+                            document.getElementById('youtube-speed').textContent = data.speed ? `Speed: ${data.speed}` : '';
+                            document.getElementById('youtube-eta').textContent = data.eta ? `ETA: ${data.eta}` : '';
+                            return;
+                        }
+
+                        clearInterval(youtubePollInterval);
+                        youtubePollInterval = null;
+                        document.getElementById('youtube-progress').classList.remove('visible');
+
+                        if (data.status === 'complete') {
+                            showYoutubeSuccess(data);
+                        } else if (data.status === 'aborted') {
+                            showYoutubeError('YouTube download was aborted.');
+                        } else {
+                            showYoutubeError(data.error || 'YouTube download failed.');
+                        }
+
+                        const btn = document.getElementById('youtube-download-btn');
+                        const abortBtn = document.getElementById('youtube-abort-btn');
+                        btn.disabled = false;
+                        btn.textContent = 'Download';
+                        abortBtn.classList.remove('visible');
+                    })
+                    .catch(() => {
+                        // Ignore transient polling errors.
+                    });
+            }, 700);
+        }
+
+        function abortYoutubeDownload() {
+            if (!youtubeJobId) return;
+
+            const abortBtn = document.getElementById('youtube-abort-btn');
+            abortBtn.disabled = true;
+            abortBtn.textContent = 'Aborting...';
+
+            fetch(`/youtube/abort/${youtubeJobId}`, { method: 'POST' })
+                .catch(() => {
+                    // Polling loop will reflect final state.
+                });
+        }
+
+        function showYoutubeSuccess(data) {
+            const result = document.getElementById('youtube-result');
+            const downloadHref = `/files/download?root=${encodeURIComponent(data.download_root || 'downloads')}&path=${encodeURIComponent(data.download_path || '')}`;
+            result.innerHTML = `
+                <div class="result-success">
+                    <div class="result-icon">✅</div>
+                    <div class="result-message">YouTube Download Complete!</div>
+                    <div class="result-size">Output file size: ${data.output_size || 'Unknown'}</div>
+                    <a href="${downloadHref}" class="download-btn">⬇️ Download File</a>
+                </div>
+            `;
+        }
+
+        function showYoutubeError(detail) {
+            const result = document.getElementById('youtube-result');
+            result.innerHTML = `
+                <div class="result-error">
+                    <div class="result-icon">❌</div>
+                    <div class="result-message">YouTube Download Failed</div>
+                    <div class="result-detail">${detail}</div>
+                </div>
+            `;
+        }
+
+        /* ============================================================
            Reset
         ============================================================ */
         function resetAll() {
@@ -1469,6 +1924,12 @@
                 clearInterval(progressPollInterval);
                 progressPollInterval = null;
             }
+            if (youtubePollInterval) {
+                clearInterval(youtubePollInterval);
+                youtubePollInterval = null;
+            }
+            youtubeJobId = null;
+            youtubeMode = 'video';
 
             currentFileId = null;
             currentMode = 'video';
@@ -1489,6 +1950,18 @@
             document.getElementById('upload-progress').classList.remove('visible');
             document.getElementById('resolution-section').classList.remove('visible');
             document.getElementById('resolution-grid').innerHTML = '';
+            document.getElementById('youtube-progress').classList.remove('visible');
+            document.getElementById('youtube-result').innerHTML = '';
+            document.getElementById('youtube-download-btn').disabled = false;
+            document.getElementById('youtube-download-btn').textContent = 'Download';
+            document.getElementById('youtube-downloaded').textContent = '';
+            document.getElementById('youtube-abort-btn').classList.remove('visible');
+            document.getElementById('youtube-abort-btn').disabled = false;
+            document.getElementById('youtube-abort-btn').textContent = 'Abort Download';
+            document.getElementById('youtube-url').value = '';
+            document.getElementById('youtube-quality').value = 'best';
+            document.getElementById('youtube-audio-format').value = 'mp3';
+            setYoutubeMode('video');
             fileInput.value = '';
 
             // Reset mode tabs

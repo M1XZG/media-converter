@@ -9,6 +9,8 @@ import json
 import shutil
 import re
 import threading
+import io
+import zipfile
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -30,6 +32,8 @@ from apscheduler.schedulers.background import BackgroundScheduler
 BASE_DIR = Path(__file__).resolve().parent
 UPLOAD_FOLDER = BASE_DIR / "uploads"
 CONVERTED_FOLDER = BASE_DIR / "converted"
+DOWNLOADS_FOLDER = BASE_DIR / "downloads"
+YOUTUBE_DOWNLOADS_FOLDER = DOWNLOADS_FOLDER / "youtube"
 CLEANUP_HOURS = int(os.environ.get("CLEANUP_HOURS", 24))
 
 ALLOWED_INPUT_EXTENSIONS = {
@@ -64,9 +68,20 @@ app.config["MAX_CONTENT_LENGTH"] = int(os.environ.get("MAX_CONTENT_LENGTH", 0)) 
 
 UPLOAD_FOLDER.mkdir(exist_ok=True)
 CONVERTED_FOLDER.mkdir(exist_ok=True)
+YOUTUBE_DOWNLOADS_FOLDER.mkdir(parents=True, exist_ok=True)
 
 # Active conversion jobs: file_id -> job dict
 _active_jobs: dict[str, dict] = {}
+_youtube_jobs: dict[str, dict] = {}
+
+YOUTUBE_QUALITY_OPTIONS = {
+    "best": "Best",
+    "1080": "1080p",
+    "720": "720p",
+    "480": "480p",
+}
+
+YOUTUBE_AUDIO_FORMATS = {"mp3", "aac"}
 
 
 # ---------------------------------------------------------------------------
@@ -76,6 +91,57 @@ _active_jobs: dict[str, dict] = {}
 def _ffmpeg_available() -> bool:
     """Check if ffmpeg is accessible on the system PATH."""
     return shutil.which("ffmpeg") is not None
+
+
+def _ytdlp_available() -> bool:
+    """Check if yt-dlp is accessible on the system PATH."""
+    return shutil.which("yt-dlp") is not None
+
+
+def _is_supported_youtube_url(url: str) -> bool:
+    """Basic validation for YouTube URLs."""
+    pattern = re.compile(r"^(https?://)?(www\.)?(youtube\.com|youtu\.be)/.+$", re.IGNORECASE)
+    return bool(pattern.match(url.strip()))
+
+
+def _safe_root(root: str) -> Path | None:
+    """Map API root key to a filesystem directory."""
+    mapping = {
+        "converted": CONVERTED_FOLDER,
+        "downloads": DOWNLOADS_FOLDER,
+    }
+    return mapping.get(root)
+
+
+def _safe_resolve_path(base: Path, rel_path: str) -> Path | None:
+    """Resolve a user-supplied relative path safely under base directory."""
+    if not rel_path:
+        return None
+    candidate = (base / rel_path).resolve()
+    try:
+        candidate.relative_to(base.resolve())
+    except ValueError:
+        return None
+    return candidate
+
+
+def _list_files_recursive(base: Path) -> list[dict]:
+    """Return file metadata recursively under base."""
+    items: list[dict] = []
+    if not base.exists():
+        return items
+
+    for file_path in sorted([p for p in base.rglob("*") if p.is_file()], key=lambda p: str(p).lower()):
+        rel = file_path.relative_to(base).as_posix()
+        items.append(
+            {
+                "relative_path": rel,
+                "name": file_path.name,
+                "size": _human_size(file_path.stat().st_size),
+                "modified": datetime.fromtimestamp(file_path.stat().st_mtime).strftime("%Y-%m-%d %H:%M"),
+            }
+        )
+    return items
 
 
 # ---------------------------------------------------------------------------
@@ -187,13 +253,51 @@ def _human_duration(seconds: float) -> str:
     return f"{m}:{s:02d}"
 
 
+def _parse_size_to_bytes(size_text: str) -> int | None:
+    """Parse a size string like '1.23GiB' or '950MiB' into bytes."""
+    if not size_text:
+        return None
+
+    match = re.match(r"^\s*([0-9]+(?:\.[0-9]+)?)\s*([KMGTPE]?i?B)\s*$", size_text, re.IGNORECASE)
+    if not match:
+        return None
+
+    value = float(match.group(1))
+    unit = match.group(2).upper()
+
+    factors = {
+        "B": 1,
+        "KB": 1000,
+        "MB": 1000 ** 2,
+        "GB": 1000 ** 3,
+        "TB": 1000 ** 4,
+        "PB": 1000 ** 5,
+        "EB": 1000 ** 6,
+        "KIB": 1024,
+        "MIB": 1024 ** 2,
+        "GIB": 1024 ** 3,
+        "TIB": 1024 ** 4,
+        "PIB": 1024 ** 5,
+        "EIB": 1024 ** 6,
+    }
+
+    factor = factors.get(unit)
+    if factor is None:
+        return None
+
+    return int(value * factor)
+
+
 def allowed_file(filename: str) -> bool:
     ext = Path(filename).suffix.lower()
     return ext in ALLOWED_INPUT_EXTENSIONS
 
 
 def cleanup_old_files():
-    """Delete files older than CLEANUP_HOURS from uploads/ and converted/."""
+    """Delete files older than CLEANUP_HOURS from uploads/ and converted/.
+
+    The downloads/ hierarchy is intentionally not cleaned automatically.
+    """
     cutoff = datetime.now() - timedelta(hours=CLEANUP_HOURS)
     for folder in (UPLOAD_FOLDER, CONVERTED_FOLDER):
         if not folder.exists():
@@ -221,6 +325,8 @@ def index():
         video_formats=VIDEO_OUTPUT_FORMATS,
         audio_formats=AUDIO_OUTPUT_FORMATS,
         ffmpeg_ok=_ffmpeg_available(),
+        ytdlp_ok=_ytdlp_available(),
+        youtube_quality_options=YOUTUBE_QUALITY_OPTIONS,
         gpu_info=gpu,
     )
 
@@ -641,12 +747,345 @@ def download(download_id):
     )
 
 
+@app.route("/youtube/download", methods=["POST"])
+def youtube_download():
+    """Start a background YouTube download job."""
+    if not _ytdlp_available():
+        return jsonify({"error": "yt-dlp is not installed or not found on PATH."}), 500
+
+    data = request.get_json() or {}
+    url = (data.get("url") or "").strip()
+    mode = (data.get("mode") or "video").strip().lower()
+    quality = (data.get("quality") or "best").strip().lower()
+    audio_format = (data.get("audio_format") or "mp3").strip().lower()
+
+    if not url:
+        return jsonify({"error": "Missing YouTube URL."}), 400
+
+    if not _is_supported_youtube_url(url):
+        return jsonify({"error": "Please provide a valid YouTube URL."}), 400
+
+    if mode not in {"video", "audio"}:
+        return jsonify({"error": "Unsupported mode. Use 'video' or 'audio'."}), 400
+
+    if quality not in YOUTUBE_QUALITY_OPTIONS:
+        return jsonify({"error": "Unsupported quality selection."}), 400
+
+    if mode == "audio" and audio_format not in YOUTUBE_AUDIO_FORMATS:
+        return jsonify({"error": "Unsupported audio format. Use mp3 or aac."}), 400
+
+    job_id = uuid.uuid4().hex
+    output_template = str(YOUTUBE_DOWNLOADS_FOLDER / f"{job_id}.%(ext)s")
+
+    job = {
+        "status": "downloading",
+        "percent": 0,
+        "speed": "",
+        "eta": "",
+        "downloaded_size": "",
+        "total_size": "",
+        "error": None,
+        "output_name": "",
+        "output_size": "",
+        "process": None,
+        "mode": mode,
+        "quality": quality,
+        "audio_format": audio_format,
+    }
+    _youtube_jobs[job_id] = job
+
+    cmd = [
+        "yt-dlp",
+        "--no-playlist",
+        "--newline",
+        "--progress",
+        "--restrict-filenames",
+        "-o",
+        output_template,
+    ]
+
+    if mode == "video":
+        quality_formats = {
+            "best": "bv*+ba/b",
+            "1080": "bv*[height<=1080]+ba/b[height<=1080]",
+            "720": "bv*[height<=720]+ba/b[height<=720]",
+            "480": "bv*[height<=480]+ba/b[height<=480]",
+        }
+        cmd.extend([
+            "-f",
+            quality_formats[quality],
+            "--merge-output-format",
+            "mp4",
+        ])
+    else:
+        cmd.extend([
+            "-f",
+            "bestaudio/best",
+            "-x",
+            "--audio-format",
+            audio_format,
+            "--audio-quality",
+            "0",
+        ])
+
+    cmd.append(url)
+
+    progress_re = re.compile(r"\[download\]\s+(\d+(?:\.\d+)?)%")
+    speed_re = re.compile(r"at\s+([^\s]+)")
+    eta_re = re.compile(r"ETA\s+([0-9:]+)")
+    total_size_re = re.compile(r"of\s+~?\s*([0-9]+(?:\.[0-9]+)?\s*[KMGTPE]?i?B)", re.IGNORECASE)
+
+    def _run_download():
+        """Execute yt-dlp and parse progress output."""
+        try:
+            proc = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1,
+            )
+            job["process"] = proc
+            last_error_line = ""
+
+            if proc.stdout:
+                for raw_line in proc.stdout:
+                    line = raw_line.strip()
+                    if not line:
+                        continue
+
+                    progress_match = progress_re.search(line)
+                    if progress_match:
+                        try:
+                            pct = int(float(progress_match.group(1)))
+                            job["percent"] = max(0, min(pct, 99))
+                        except (ValueError, TypeError):
+                            pass
+
+                    total_size_match = total_size_re.search(line)
+                    if total_size_match:
+                        total_text = total_size_match.group(1).replace(" ", "")
+                        total_bytes = _parse_size_to_bytes(total_text)
+                        if total_bytes and total_bytes > 0:
+                            job["total_size"] = _human_size(total_bytes)
+                            downloaded_bytes = int((job["percent"] / 100) * total_bytes)
+                            job["downloaded_size"] = _human_size(downloaded_bytes)
+
+                    speed_match = speed_re.search(line)
+                    if speed_match:
+                        job["speed"] = speed_match.group(1)
+
+                    eta_match = eta_re.search(line)
+                    if eta_match:
+                        job["eta"] = eta_match.group(1)
+
+                    if "ERROR:" in line:
+                        last_error_line = line
+
+            proc.wait(timeout=7200)
+
+            if job["status"] == "aborted":
+                return
+
+            if proc.returncode != 0:
+                job["status"] = "error"
+                job["error"] = last_error_line or "YouTube download failed."
+                return
+
+            artifacts = sorted(
+                [p for p in YOUTUBE_DOWNLOADS_FOLDER.glob(f"{job_id}*") if p.is_file()],
+                key=lambda p: p.stat().st_mtime,
+                reverse=True,
+            )
+            if not artifacts:
+                job["status"] = "error"
+                job["error"] = "Download completed but output file was not found."
+                return
+
+            expected_ext = ".mp4" if job["mode"] == "video" else f".{job['audio_format']}"
+            expected_name = f"{job_id}{expected_ext}"
+
+            output_path = next(
+                (p for p in artifacts if p.name == expected_name),
+                None,
+            )
+
+            if output_path is None:
+                output_path = next(
+                    (p for p in artifacts if "-temp" not in p.name and not p.name.endswith(".part")),
+                    None,
+                )
+
+            if output_path is None:
+                output_path = artifacts[0]
+
+            # Keep only the final artifact for this job and remove temporary side files.
+            for artifact in artifacts:
+                if artifact == output_path:
+                    continue
+                try:
+                    artifact.unlink()
+                except OSError:
+                    pass
+
+            job["status"] = "complete"
+            job["percent"] = 100
+            job["output_name"] = output_path.name
+            job["output_size"] = _human_size(output_path.stat().st_size)
+            job["downloaded_size"] = job["output_size"]
+            job["total_size"] = job["output_size"]
+
+        except subprocess.TimeoutExpired:
+            job["status"] = "error"
+            job["error"] = "Download timed out (exceeded 2 hours)."
+            try:
+                proc.kill()
+            except Exception:
+                pass
+        except FileNotFoundError:
+            job["status"] = "error"
+            job["error"] = "yt-dlp is not installed or not found on PATH."
+        except Exception as e:
+            job["status"] = "error"
+            job["error"] = f"Unexpected error: {str(e)}"
+
+    thread = threading.Thread(target=_run_download, daemon=True)
+    thread.start()
+
+    return jsonify({"status": "started", "job_id": job_id})
+
+
+@app.route("/youtube/progress/<job_id>")
+def youtube_progress(job_id):
+    """Poll YouTube download progress for a given job."""
+    job = _youtube_jobs.get(job_id)
+    if not job:
+        return jsonify({"status": "not_found"}), 404
+
+    resp = {
+        "status": job["status"],
+        "percent": job["percent"],
+        "speed": job["speed"],
+        "eta": job["eta"],
+        "downloaded_size": job.get("downloaded_size", ""),
+        "total_size": job.get("total_size", ""),
+    }
+
+    if job["status"] == "complete":
+        resp["download_id"] = job["output_name"]
+        resp["download_root"] = "downloads"
+        resp["download_path"] = f"youtube/{job['output_name']}"
+        resp["output_size"] = job["output_size"]
+    elif job["status"] == "error":
+        resp["error"] = job["error"]
+    elif job["status"] == "aborted":
+        resp["error"] = "YouTube download was aborted."
+
+    return jsonify(resp)
+
+
+@app.route("/youtube/abort/<job_id>", methods=["POST"])
+def youtube_abort(job_id):
+    """Abort an in-progress YouTube download and clean up partial files."""
+    job = _youtube_jobs.get(job_id)
+    if not job:
+        return jsonify({"error": "No active YouTube download found."}), 404
+
+    if job["status"] != "downloading":
+        return jsonify({"error": "YouTube download is not in progress."}), 400
+
+    job["status"] = "aborted"
+    proc = job.get("process")
+    if proc:
+        try:
+            proc.kill()
+            proc.wait(timeout=5)
+        except Exception:
+            pass
+
+    for partial in YOUTUBE_DOWNLOADS_FOLDER.glob(f"{job_id}.*"):
+        try:
+            partial.unlink()
+        except OSError:
+            pass
+
+    return jsonify({"status": "aborted"})
+
+
+@app.route("/files")
+def files_page():
+    """Simple web file browser for converted and downloaded files."""
+    converted_files = _list_files_recursive(CONVERTED_FOLDER)
+    downloaded_files = _list_files_recursive(DOWNLOADS_FOLDER)
+    return render_template(
+        "files.html",
+        converted_files=converted_files,
+        downloaded_files=downloaded_files,
+    )
+
+
+@app.route("/files/download")
+def files_download_single():
+    """Download one file from converted/ or downloads/."""
+    root = request.args.get("root", "").strip().lower()
+    rel_path = request.args.get("path", "").strip()
+
+    base = _safe_root(root)
+    if not base:
+        return jsonify({"error": "Invalid root."}), 400
+
+    file_path = _safe_resolve_path(base, rel_path)
+    if not file_path or not file_path.exists() or not file_path.is_file():
+        return jsonify({"error": "File not found."}), 404
+
+    return send_file(str(file_path), as_attachment=True, download_name=file_path.name)
+
+
+@app.route("/files/download-selected", methods=["POST"])
+def files_download_selected():
+    """Download selected files as a zip archive."""
+    data = request.get_json() or {}
+    selected = data.get("selected") or []
+    if not isinstance(selected, list) or not selected:
+        return jsonify({"error": "No files selected."}), 400
+
+    file_entries: list[tuple[Path, str]] = []
+    for item in selected:
+        if not isinstance(item, dict):
+            continue
+        root = str(item.get("root", "")).strip().lower()
+        rel_path = str(item.get("path", "")).strip()
+        base = _safe_root(root)
+        if not base:
+            continue
+        resolved = _safe_resolve_path(base, rel_path)
+        if not resolved or not resolved.exists() or not resolved.is_file():
+            continue
+        archive_name = f"{root}/{rel_path}"
+        file_entries.append((resolved, archive_name))
+
+    if not file_entries:
+        return jsonify({"error": "No valid files selected."}), 400
+
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        for src, archive_name in file_entries:
+            zf.write(src, arcname=archive_name)
+    buffer.seek(0)
+
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    zip_name = f"media_selection_{ts}.zip"
+    return send_file(buffer, as_attachment=True, download_name=zip_name, mimetype="application/zip")
+
+
 @app.route("/health")
 def health():
     gpu = _detect_gpu_encoder()
     return jsonify({
         "status": "ok",
         "ffmpeg": _ffmpeg_available(),
+        "yt_dlp": _ytdlp_available(),
+        "downloads": str(DOWNLOADS_FOLDER),
         "gpu": gpu.get("label", "None") if gpu else "None",
     })
 

@@ -21,6 +21,13 @@ if ! command -v ffmpeg &> /dev/null; then
     echo
 fi
 
+# Check for yt-dlp
+if ! command -v yt-dlp &> /dev/null; then
+    echo "[WARNING] yt-dlp is not installed or not on PATH yet."
+    echo "It will be installed into the virtual environment from requirements."
+    echo
+fi
+
 # Create virtual environment if it doesn't exist
 if [ ! -d "venv" ]; then
     echo "Creating virtual environment..."
@@ -39,7 +46,7 @@ venv/bin/pip install -r requirements.txt --quiet
 echo
 
 # Create directories
-mkdir -p uploads converted
+mkdir -p uploads converted downloads/youtube
 
 # Run the app
 echo "============================================"

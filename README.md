@@ -21,12 +21,15 @@ A self-hosted web application for converting video files between formats and ext
 
 - **Video Format Conversion** — Convert between popular video formats (MP4, AVI, MKV, MOV, WMV, FLV, WebM)
 - **Audio Extraction** — Extract audio tracks from video files (MP3, AAC, WAV, FLAC, OGG)
+- **YouTube Downloader** — Download YouTube media from a URL with mode selection (video/audio), quality presets, and abort support
+- **Media Library Page** — Browse `converted/` and `downloads/` in a simple web file browser with selectable multi-file download
 - **Resolution Scaling** — Upscale or downscale video (480p, 720p, 1080p, 1440p, 4K) with high-quality Lanczos filtering
 - **GPU Acceleration** — Automatically uses hardware encoding (NVIDIA NVENC, AMD AMF, Intel QSV, VA-API) when available, with seamless CPU fallback
 - **Real-time Progress** — Live progress bar with speed and ETA during conversion
 - **Abort Support** — Cancel in-progress conversions with automatic cleanup
 - **No File Size Limits** — Upload files of any size
-- **Automatic Cleanup** — All uploaded and converted files are automatically deleted after 24 hours
+- **Automatic Cleanup** — Temporary uploads and converted files are automatically deleted after 24 hours
+- **Persistent Downloads** — Downloaded media is stored under `downloads/<service>/` and is never auto-deleted
 - **Dark/Light Mode** — Modern UI with dark mode as default and easy toggle
 - **Docker Ready** — Run with GPU support via Docker Compose in one command
 - **Self-Contained** — Runs in a Python virtual environment with minimal dependencies
@@ -107,11 +110,14 @@ python app.py
 
 Then open your browser to **http://localhost:5000**
 
+Media Library page: **http://localhost:5000/files**
+
 ---
 
 ## Installing FFmpeg
 
 FFmpeg must be installed and available on your system PATH (not required for Docker — it's included in the image).
+yt-dlp is installed automatically via pip from requirements and is used for YouTube downloads.
 
 <details>
 <summary><strong>Windows</strong></summary>
@@ -179,6 +185,8 @@ Environment variables can be set in a `.env` file or exported:
 | `MAX_CONTENT_LENGTH` | `0` (unlimited) | Max upload size in bytes (0 = no limit) |
 | `CLEANUP_HOURS` | `24` | Hours before files are auto-deleted |
 
+Cleanup applies only to `uploads/` and `converted/`. Files in `downloads/` are preserved.
+
 ---
 
 ## Supported Formats
@@ -235,9 +243,12 @@ media-converter/
 ├── .gitignore
 ├── README.md
 ├── templates/
-│   └── index.html      # Web UI
+│   ├── index.html      # Main web UI
+│   └── files.html      # Simple media library browser
 ├── uploads/            # Temporary upload storage (auto-created)
-└── converted/          # Temporary converted file storage (auto-created)
+├── converted/          # Temporary converted file storage (auto-created)
+└── downloads/
+    └── youtube/         # Persistent YouTube downloads (not auto-cleaned)
 ```
 
 ---

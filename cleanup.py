@@ -1,6 +1,7 @@
 """
 Standalone cleanup script — can be run via cron or manually.
 Deletes files older than CLEANUP_HOURS from uploads/ and converted/.
+The downloads/ directory is intentionally excluded.
 """
 
 import os

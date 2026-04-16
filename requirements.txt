@@ -1,3 +1,4 @@
 flask>=3.0
 werkzeug>=3.0
 apscheduler>=3.10
+yt-dlp>=2025.1

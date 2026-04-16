@@ -36,8 +36,8 @@ RUN pip3 install --no-cache-dir --break-system-packages -r requirements.txt
 COPY app.py cleanup.py ./
 COPY templates/ templates/
 
-# Create directories for uploads and converted files
-RUN mkdir -p uploads converted
+# Create directories for uploads, converted output, and persistent downloads
+RUN mkdir -p uploads converted downloads/youtube
 
 # Expose port
 EXPOSE 5000

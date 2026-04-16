@@ -37,3 +37,6 @@ converted/
 # Environment variables
 .env
 .flaskenv
+
+# Downloaded media files
+downloads/
