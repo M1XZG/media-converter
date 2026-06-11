@@ -21,7 +21,7 @@ A self-hosted web application for converting video files between formats and ext
 
 - **Video Format Conversion** — Convert between popular video formats (MP4, AVI, MKV, MOV, WMV, FLV, WebM)
 - **Audio Extraction** — Extract audio tracks from video files (MP3, AAC, WAV, FLAC, OGG)
-- **YouTube Downloader** — Download YouTube media from a URL with mode selection (video/audio), quality presets, and abort support
+- **Social Media Downloader** — Download media from YouTube, Instagram, TikTok, and X/Twitter with mode selection (video/audio), quality presets, and abort support
 - **Media Library Page** — Browse `converted/` and `downloads/` in a simple web file browser with selectable multi-file download
 - **Resolution Scaling** — Upscale or downscale video (480p, 720p, 1080p, 1440p, 4K) with high-quality Lanczos filtering
 - **GPU Acceleration** — Automatically uses hardware encoding (NVIDIA NVENC, AMD AMF, Intel QSV, VA-API) when available, with seamless CPU fallback
@@ -112,12 +112,16 @@ Then open your browser to **http://localhost:5000**
 
 Media Library page: **http://localhost:5000/files**
 
+Downloader support: **YouTube, Instagram, TikTok, X/Twitter**
+
 ---
 
 ## Installing FFmpeg
 
 FFmpeg must be installed and available on your system PATH (not required for Docker — it's included in the image).
-yt-dlp is installed automatically via pip from requirements and is used for YouTube downloads.
+yt-dlp is installed automatically via pip from requirements and is used for YouTube, Instagram, TikTok, and X/Twitter downloads.
+
+Public posts generally work best. Some Instagram or X/Twitter links may require authentication or cookies depending on upstream site restrictions.
 
 <details>
 <summary><strong>Windows</strong></summary>
@@ -248,7 +252,10 @@ media-converter/
 ├── uploads/            # Temporary upload storage (auto-created)
 ├── converted/          # Temporary converted file storage (auto-created)
 └── downloads/
-    └── youtube/         # Persistent YouTube downloads (not auto-cleaned)
+    ├── youtube/         # Persistent YouTube downloads (not auto-cleaned)
+    ├── instagram/       # Persistent Instagram downloads (not auto-cleaned)
+    ├── tiktok/          # Persistent TikTok downloads (not auto-cleaned)
+    └── twitter/         # Persistent X/Twitter downloads (not auto-cleaned)
 ```
 
 ---

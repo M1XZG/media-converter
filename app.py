@@ -34,6 +34,9 @@ UPLOAD_FOLDER = BASE_DIR / "uploads"
 CONVERTED_FOLDER = BASE_DIR / "converted"
 DOWNLOADS_FOLDER = BASE_DIR / "downloads"
 YOUTUBE_DOWNLOADS_FOLDER = DOWNLOADS_FOLDER / "youtube"
+INSTAGRAM_DOWNLOADS_FOLDER = DOWNLOADS_FOLDER / "instagram"
+TIKTOK_DOWNLOADS_FOLDER = DOWNLOADS_FOLDER / "tiktok"
+TWITTER_DOWNLOADS_FOLDER = DOWNLOADS_FOLDER / "twitter"
 CLEANUP_HOURS = int(os.environ.get("CLEANUP_HOURS", 24))
 
 ALLOWED_INPUT_EXTENSIONS = {
@@ -69,6 +72,9 @@ app.config["MAX_CONTENT_LENGTH"] = int(os.environ.get("MAX_CONTENT_LENGTH", 0)) 
 UPLOAD_FOLDER.mkdir(exist_ok=True)
 CONVERTED_FOLDER.mkdir(exist_ok=True)
 YOUTUBE_DOWNLOADS_FOLDER.mkdir(parents=True, exist_ok=True)
+INSTAGRAM_DOWNLOADS_FOLDER.mkdir(parents=True, exist_ok=True)
+TIKTOK_DOWNLOADS_FOLDER.mkdir(parents=True, exist_ok=True)
+TWITTER_DOWNLOADS_FOLDER.mkdir(parents=True, exist_ok=True)
 
 # Active conversion jobs: file_id -> job dict
 _active_jobs: dict[str, dict] = {}
@@ -82,6 +88,29 @@ YOUTUBE_QUALITY_OPTIONS = {
 }
 
 YOUTUBE_AUDIO_FORMATS = {"mp3", "aac"}
+
+SUPPORTED_DOWNLOAD_SERVICES = {
+    "youtube": {
+        "label": "YouTube",
+        "folder": YOUTUBE_DOWNLOADS_FOLDER,
+        "domains": ("youtube.com", "youtu.be"),
+    },
+    "instagram": {
+        "label": "Instagram",
+        "folder": INSTAGRAM_DOWNLOADS_FOLDER,
+        "domains": ("instagram.com",),
+    },
+    "tiktok": {
+        "label": "TikTok",
+        "folder": TIKTOK_DOWNLOADS_FOLDER,
+        "domains": ("tiktok.com", "vt.tiktok.com", "vm.tiktok.com"),
+    },
+    "twitter": {
+        "label": "X/Twitter",
+        "folder": TWITTER_DOWNLOADS_FOLDER,
+        "domains": ("twitter.com", "x.com"),
+    },
+}
 
 
 # ---------------------------------------------------------------------------
@@ -102,6 +131,40 @@ def _is_supported_youtube_url(url: str) -> bool:
     """Basic validation for YouTube URLs."""
     pattern = re.compile(r"^(https?://)?(www\.)?(youtube\.com|youtu\.be)/.+$", re.IGNORECASE)
     return bool(pattern.match(url.strip()))
+
+
+def _detect_download_service(url: str) -> str | None:
+    """Map a supported media URL to its download service key."""
+    cleaned = url.strip()
+    if not cleaned:
+        return None
+
+    if not re.match(r"^https?://", cleaned, re.IGNORECASE):
+        cleaned = f"https://{cleaned}"
+
+    match = re.match(r"^https?://([^/]+)", cleaned, re.IGNORECASE)
+    if not match:
+        return None
+
+    host = match.group(1).lower()
+    if host.startswith("www."):
+        host = host[4:]
+    if host.startswith("m."):
+        host = host[2:]
+    if host.startswith("mobile."):
+        host = host[7:]
+
+    for service, info in SUPPORTED_DOWNLOAD_SERVICES.items():
+        domains = info["domains"]
+        if any(host == domain or host.endswith(f".{domain}") for domain in domains):
+            return service
+
+    return None
+
+
+def _is_supported_download_url(url: str) -> bool:
+    """Basic validation for supported yt-dlp-backed services."""
+    return _detect_download_service(url) is not None
 
 
 def _safe_root(root: str) -> Path | None:
@@ -327,6 +390,7 @@ def index():
         ffmpeg_ok=_ffmpeg_available(),
         ytdlp_ok=_ytdlp_available(),
         youtube_quality_options=YOUTUBE_QUALITY_OPTIONS,
+        supported_download_services=[info["label"] for info in SUPPORTED_DOWNLOAD_SERVICES.values()],
         gpu_info=gpu,
     )
 
@@ -747,9 +811,10 @@ def download(download_id):
     )
 
 
+@app.route("/media/download", methods=["POST"])
 @app.route("/youtube/download", methods=["POST"])
 def youtube_download():
-    """Start a background YouTube download job."""
+    """Start a background media download job for supported services."""
     if not _ytdlp_available():
         return jsonify({"error": "yt-dlp is not installed or not found on PATH."}), 500
 
@@ -760,10 +825,15 @@ def youtube_download():
     audio_format = (data.get("audio_format") or "mp3").strip().lower()
 
     if not url:
-        return jsonify({"error": "Missing YouTube URL."}), 400
+        return jsonify({"error": "Missing media URL."}), 400
 
-    if not _is_supported_youtube_url(url):
-        return jsonify({"error": "Please provide a valid YouTube URL."}), 400
+    service = _detect_download_service(url)
+    if not service:
+        supported = ", ".join(info["label"] for info in SUPPORTED_DOWNLOAD_SERVICES.values())
+        return jsonify({"error": f"Please provide a supported URL. Supported services: {supported}."}), 400
+
+    service_info = SUPPORTED_DOWNLOAD_SERVICES[service]
+    output_folder = service_info["folder"]
 
     if mode not in {"video", "audio"}:
         return jsonify({"error": "Unsupported mode. Use 'video' or 'audio'."}), 400
@@ -775,7 +845,7 @@ def youtube_download():
         return jsonify({"error": "Unsupported audio format. Use mp3 or aac."}), 400
 
     job_id = uuid.uuid4().hex
-    output_template = str(YOUTUBE_DOWNLOADS_FOLDER / f"{job_id}.%(ext)s")
+    output_template = str(output_folder / f"{job_id}.%(ext)s")
 
     job = {
         "status": "downloading",
@@ -788,6 +858,8 @@ def youtube_download():
         "output_name": "",
         "output_size": "",
         "process": None,
+        "service": service,
+        "service_label": service_info["label"],
         "mode": mode,
         "quality": quality,
         "audio_format": audio_format,
@@ -814,6 +886,11 @@ def youtube_download():
         cmd.extend([
             "-f",
             quality_formats[quality],
+            # Prefer H.264 video and AAC audio for broad playback compatibility.
+            # Some sites (e.g. TikTok) default to HEVC/H.265, which many players
+            # cannot decode correctly and can result in missing audio/video.
+            "-S",
+            "vcodec:h264,acodec:aac",
             "--merge-output-format",
             "mp4",
         ])
@@ -889,11 +966,11 @@ def youtube_download():
 
             if proc.returncode != 0:
                 job["status"] = "error"
-                job["error"] = last_error_line or "YouTube download failed."
+                job["error"] = last_error_line or f"{job['service_label']} download failed."
                 return
 
             artifacts = sorted(
-                [p for p in YOUTUBE_DOWNLOADS_FOLDER.glob(f"{job_id}*") if p.is_file()],
+                [p for p in output_folder.glob(f"{job_id}*") if p.is_file()],
                 key=lambda p: p.stat().st_mtime,
                 reverse=True,
             )
@@ -955,9 +1032,10 @@ def youtube_download():
     return jsonify({"status": "started", "job_id": job_id})
 
 
+@app.route("/media/progress/<job_id>")
 @app.route("/youtube/progress/<job_id>")
 def youtube_progress(job_id):
-    """Poll YouTube download progress for a given job."""
+    """Poll media download progress for a given job."""
     job = _youtube_jobs.get(job_id)
     if not job:
         return jsonify({"status": "not_found"}), 404
@@ -974,25 +1052,28 @@ def youtube_progress(job_id):
     if job["status"] == "complete":
         resp["download_id"] = job["output_name"]
         resp["download_root"] = "downloads"
-        resp["download_path"] = f"youtube/{job['output_name']}"
+        resp["download_path"] = f"{job['service']}/{job['output_name']}"
         resp["output_size"] = job["output_size"]
+        resp["service"] = job["service"]
+        resp["service_label"] = job["service_label"]
     elif job["status"] == "error":
         resp["error"] = job["error"]
     elif job["status"] == "aborted":
-        resp["error"] = "YouTube download was aborted."
+        resp["error"] = f"{job['service_label']} download was aborted."
 
     return jsonify(resp)
 
 
+@app.route("/media/abort/<job_id>", methods=["POST"])
 @app.route("/youtube/abort/<job_id>", methods=["POST"])
 def youtube_abort(job_id):
-    """Abort an in-progress YouTube download and clean up partial files."""
+    """Abort an in-progress media download and clean up partial files."""
     job = _youtube_jobs.get(job_id)
     if not job:
-        return jsonify({"error": "No active YouTube download found."}), 404
+        return jsonify({"error": "No active media download found."}), 404
 
     if job["status"] != "downloading":
-        return jsonify({"error": "YouTube download is not in progress."}), 400
+        return jsonify({"error": "Media download is not in progress."}), 400
 
     job["status"] = "aborted"
     proc = job.get("process")
@@ -1003,7 +1084,8 @@ def youtube_abort(job_id):
         except Exception:
             pass
 
-    for partial in YOUTUBE_DOWNLOADS_FOLDER.glob(f"{job_id}.*"):
+    output_folder = SUPPORTED_DOWNLOAD_SERVICES[job["service"]]["folder"]
+    for partial in output_folder.glob(f"{job_id}.*"):
         try:
             partial.unlink()
         except OSError:
@@ -1076,6 +1158,48 @@ def files_download_selected():
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     zip_name = f"media_selection_{ts}.zip"
     return send_file(buffer, as_attachment=True, download_name=zip_name, mimetype="application/zip")
+
+
+@app.route("/files/delete-selected", methods=["POST"])
+def files_delete_selected():
+    """Delete selected files from converted/ or downloads/."""
+    data = request.get_json() or {}
+    selected = data.get("selected") or []
+    if not isinstance(selected, list) or not selected:
+        return jsonify({"error": "No files selected."}), 400
+
+    deleted_count = 0
+    missing_count = 0
+
+    for item in selected:
+        if not isinstance(item, dict):
+            continue
+
+        root = str(item.get("root", "")).strip().lower()
+        rel_path = str(item.get("path", "")).strip()
+        base = _safe_root(root)
+        if not base:
+            continue
+
+        resolved = _safe_resolve_path(base, rel_path)
+        if not resolved or not resolved.exists() or not resolved.is_file():
+            missing_count += 1
+            continue
+
+        try:
+            resolved.unlink()
+            deleted_count += 1
+        except OSError:
+            continue
+
+    if deleted_count == 0:
+        return jsonify({"error": "No valid files could be deleted."}), 400
+
+    return jsonify({
+        "status": "deleted",
+        "deleted": deleted_count,
+        "missing": missing_count,
+    })
 
 
 @app.route("/health")

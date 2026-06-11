@@ -85,7 +85,18 @@
             border-color: var(--accent-hover);
         }
 
-        .btn.primary:disabled {
+        .btn.danger {
+            background: var(--danger);
+            border-color: var(--danger);
+            color: #fff;
+        }
+
+        .btn.danger:hover {
+            filter: brightness(1.06);
+        }
+
+        .btn.primary:disabled,
+        .btn.danger:disabled {
             opacity: 0.5;
             cursor: not-allowed;
         }
@@ -185,6 +196,7 @@
             <div class="actions">
                 <a class="btn" href="/">Back to Converter</a>
                 <button class="btn primary" id="download-selected-btn" onclick="downloadSelected()">Download Selected</button>
+                <button class="btn danger" id="delete-selected-btn" onclick="deleteSelected()">Delete Selected</button>
             </div>
         </div>
 
@@ -322,6 +334,51 @@
             .finally(() => {
                 btn.disabled = false;
                 btn.textContent = 'Download Selected';
+            });
+        }
+
+        function deleteSelected() {
+            const selected = selectedItems();
+            if (selected.length === 0) {
+                setStatus('Select at least one file to delete.', true);
+                return;
+            }
+
+            if (!window.confirm(`Delete ${selected.length} selected file(s)? This cannot be undone.`)) {
+                return;
+            }
+
+            const btn = document.getElementById('delete-selected-btn');
+            btn.disabled = true;
+            btn.textContent = 'Deleting...';
+            setStatus('Deleting selected files...');
+
+            fetch('/files/delete-selected', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ selected }),
+            })
+            .then(async (response) => {
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to delete selected files.');
+                }
+
+                const deleted = data.deleted || 0;
+                const missing = data.missing || 0;
+                const message = missing > 0
+                    ? `Deleted ${deleted} file(s). ${missing} file(s) were already missing.`
+                    : `Deleted ${deleted} selected file(s).`;
+
+                setStatus(message);
+                window.setTimeout(() => window.location.reload(), 500);
+            })
+            .catch((err) => {
+                setStatus(err.message || 'Failed to delete selected files.', true);
+            })
+            .finally(() => {
+                btn.disabled = false;
+                btn.textContent = 'Delete Selected';
             });
         }
     </script>

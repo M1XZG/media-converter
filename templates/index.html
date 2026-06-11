@@ -194,12 +194,9 @@
            Info Banner
         ---------------------------------------------------------------- */
         .info-banner {
-            background: var(--bg-card);
-            border: 1px solid var(--border-color);
-            border-radius: 14px;
-            padding: 1.5rem;
-            margin-bottom: 2rem;
-            box-shadow: var(--shadow);
+            margin-bottom: 1.5rem;
+            padding-bottom: 1.5rem;
+            border-bottom: 1px solid var(--border-color);
         }
 
         .info-banner h2 {
@@ -324,6 +321,11 @@
             border-radius: 14px;
             padding: 1.75rem;
             box-shadow: var(--shadow);
+            margin-bottom: 1.5rem;
+        }
+
+        .card:last-of-type {
+            margin-bottom: 0;
         }
 
         /* ----------------------------------------------------------------
@@ -823,12 +825,12 @@
         }
 
         /* ----------------------------------------------------------------
-           YouTube Downloader
+           Social Media Downloader
         ---------------------------------------------------------------- */
         .section-divider {
             height: 1px;
             background: var(--border-color);
-            margin: 1.5rem 0;
+            margin: 1.75rem 0;
         }
 
         .youtube-section-title {
@@ -1049,6 +1051,9 @@
             </div>
         </header>
 
+        <!-- Main Card -->
+        <div class="card">
+
         <!-- Info Banner -->
         <div class="info-banner">
             <h2>Convert Videos &amp; Extract Audio — Right in Your Browser</h2>
@@ -1117,12 +1122,10 @@
         {% if not ytdlp_ok %}
         <div class="ffmpeg-warning" style="margin-top: -1rem;">
             <span>⚠️</span>
-            <span><strong>yt-dlp not found.</strong> YouTube downloads will fail without yt-dlp on your system PATH.</span>
+            <span><strong>yt-dlp not found.</strong> Social media downloads will fail without yt-dlp on your system PATH.</span>
         </div>
         {% endif %}
 
-        <!-- Main Card -->
-        <div class="card">
             <!-- Drop Zone -->
             <div class="drop-zone" id="drop-zone">
                 <div class="drop-zone-icon">📤</div>
@@ -1219,22 +1222,30 @@
 
             <!-- Result -->
             <div class="result-section" id="result-section"></div>
+        </div>
 
-            <div class="section-divider"></div>
+        <!-- Downloader Card -->
+        <div class="card">
 
-            <!-- YouTube Downloader -->
+            <!-- Social Media Downloader -->
             <div id="youtube-section">
-                <div class="youtube-section-title">Download from YouTube</div>
-                <div class="youtube-section-subtitle">Download video or audio and save permanently under downloads/youtube.</div>
+                <div class="youtube-section-title">Download from Supported Platforms</div>
+                <div class="youtube-section-subtitle">Paste a YouTube, Instagram, TikTok, or X/Twitter URL. Files are saved permanently under downloads/&lt;service&gt;.</div>
 
                 <div class="youtube-input-row">
                     <input
                         id="youtube-url"
                         class="youtube-url-input"
                         type="url"
-                        placeholder="https://www.youtube.com/watch?v=..."
+                        placeholder="https://www.youtube.com/watch?v=... or https://www.instagram.com/reel/..."
                         autocomplete="off"
                     >
+                </div>
+
+                <div class="format-tags" style="margin-bottom: 0.9rem;">
+                    {% for service_label in supported_download_services %}
+                    <span class="format-tag">{{ service_label }}</span>
+                    {% endfor %}
                 </div>
 
                 <div class="youtube-mode-tabs">
@@ -1741,7 +1752,7 @@
         }
 
         /* ============================================================
-           YouTube Downloader
+              Social Media Downloader
         ============================================================ */
         function startYoutubeDownload() {
             const input = document.getElementById('youtube-url');
@@ -1755,7 +1766,7 @@
             if (!url) {
                 result.innerHTML = `
                     <div class="result-error">
-                        <div class="result-message">Please enter a YouTube URL.</div>
+                        <div class="result-message">Please enter a supported media URL.</div>
                     </div>
                 `;
                 return;
@@ -1775,7 +1786,7 @@
             document.getElementById('youtube-eta').textContent = '';
             document.getElementById('youtube-progress').classList.add('visible');
 
-            fetch('/youtube/download', {
+            fetch('/media/download', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -1793,7 +1804,7 @@
                     startYoutubePolling(youtubeJobId);
                 } else {
                     document.getElementById('youtube-progress').classList.remove('visible');
-                    showYoutubeError(data.error || 'Unable to start YouTube download.');
+                    showYoutubeError(data.error || 'Unable to start media download.');
                     btn.disabled = false;
                     btn.textContent = 'Download';
                     abortBtn.classList.remove('visible');
@@ -1835,7 +1846,7 @@
             }
 
             youtubePollInterval = setInterval(() => {
-                fetch(`/youtube/progress/${jobId}`)
+                fetch(`/media/progress/${jobId}`)
                     .then(r => r.json())
                     .then(data => {
                         if (data.status === 'downloading') {
@@ -1861,9 +1872,9 @@
                         if (data.status === 'complete') {
                             showYoutubeSuccess(data);
                         } else if (data.status === 'aborted') {
-                            showYoutubeError('YouTube download was aborted.');
+                            showYoutubeError((data.service_label || 'Download') + ' was aborted.');
                         } else {
-                            showYoutubeError(data.error || 'YouTube download failed.');
+                            showYoutubeError(data.error || 'Media download failed.');
                         }
 
                         const btn = document.getElementById('youtube-download-btn');
@@ -1885,7 +1896,7 @@
             abortBtn.disabled = true;
             abortBtn.textContent = 'Aborting...';
 
-            fetch(`/youtube/abort/${youtubeJobId}`, { method: 'POST' })
+            fetch(`/media/abort/${youtubeJobId}`, { method: 'POST' })
                 .catch(() => {
                     // Polling loop will reflect final state.
                 });
@@ -1894,10 +1905,11 @@
         function showYoutubeSuccess(data) {
             const result = document.getElementById('youtube-result');
             const downloadHref = `/files/download?root=${encodeURIComponent(data.download_root || 'downloads')}&path=${encodeURIComponent(data.download_path || '')}`;
+            const serviceLabel = data.service_label || 'Media';
             result.innerHTML = `
                 <div class="result-success">
                     <div class="result-icon">✅</div>
-                    <div class="result-message">YouTube Download Complete!</div>
+                    <div class="result-message">${serviceLabel} Download Complete!</div>
                     <div class="result-size">Output file size: ${data.output_size || 'Unknown'}</div>
                     <a href="${downloadHref}" class="download-btn">⬇️ Download File</a>
                 </div>
@@ -1909,7 +1921,7 @@
             result.innerHTML = `
                 <div class="result-error">
                     <div class="result-icon">❌</div>
-                    <div class="result-message">YouTube Download Failed</div>
+                    <div class="result-message">Download Failed</div>
                     <div class="result-detail">${detail}</div>
                 </div>
             `;
