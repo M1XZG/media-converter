@@ -37,6 +37,7 @@ YOUTUBE_DOWNLOADS_FOLDER = DOWNLOADS_FOLDER / "youtube"
 INSTAGRAM_DOWNLOADS_FOLDER = DOWNLOADS_FOLDER / "instagram"
 TIKTOK_DOWNLOADS_FOLDER = DOWNLOADS_FOLDER / "tiktok"
 TWITTER_DOWNLOADS_FOLDER = DOWNLOADS_FOLDER / "twitter"
+PORNHUB_DOWNLOADS_FOLDER = DOWNLOADS_FOLDER / "pornhub"
 CLEANUP_HOURS = int(os.environ.get("CLEANUP_HOURS", 24))
 
 ALLOWED_INPUT_EXTENSIONS = {
@@ -75,6 +76,7 @@ YOUTUBE_DOWNLOADS_FOLDER.mkdir(parents=True, exist_ok=True)
 INSTAGRAM_DOWNLOADS_FOLDER.mkdir(parents=True, exist_ok=True)
 TIKTOK_DOWNLOADS_FOLDER.mkdir(parents=True, exist_ok=True)
 TWITTER_DOWNLOADS_FOLDER.mkdir(parents=True, exist_ok=True)
+PORNHUB_DOWNLOADS_FOLDER.mkdir(parents=True, exist_ok=True)
 
 # Active conversion jobs: file_id -> job dict
 _active_jobs: dict[str, dict] = {}
@@ -109,6 +111,12 @@ SUPPORTED_DOWNLOAD_SERVICES = {
         "label": "X/Twitter",
         "folder": TWITTER_DOWNLOADS_FOLDER,
         "domains": ("twitter.com", "x.com"),
+    },
+    "pornhub": {
+        "label": "PornHub",
+        "folder": PORNHUB_DOWNLOADS_FOLDER,
+        "domains": ("pornhub.com",),
+        "hidden": True,
     },
 }
 
@@ -390,7 +398,7 @@ def index():
         ffmpeg_ok=_ffmpeg_available(),
         ytdlp_ok=_ytdlp_available(),
         youtube_quality_options=YOUTUBE_QUALITY_OPTIONS,
-        supported_download_services=[info["label"] for info in SUPPORTED_DOWNLOAD_SERVICES.values()],
+        supported_download_services=[info["label"] for info in SUPPORTED_DOWNLOAD_SERVICES.values() if not info.get("hidden")],
         gpu_info=gpu,
     )
 
@@ -829,7 +837,7 @@ def youtube_download():
 
     service = _detect_download_service(url)
     if not service:
-        supported = ", ".join(info["label"] for info in SUPPORTED_DOWNLOAD_SERVICES.values())
+        supported = ", ".join(info["label"] for info in SUPPORTED_DOWNLOAD_SERVICES.values() if not info.get("hidden"))
         return jsonify({"error": f"Please provide a supported URL. Supported services: {supported}."}), 400
 
     service_info = SUPPORTED_DOWNLOAD_SERVICES[service]
