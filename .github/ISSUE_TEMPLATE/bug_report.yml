@@ -1,0 +1,96 @@
+name: Bug report
+description: Report a problem with Media Converter
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug report. Please fill in as much
+        detail as you can so the problem can be reproduced.
+
+        Do not report security vulnerabilities here. Use private vulnerability
+        reporting instead (see the repository Security tab and SECURITY.md).
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Preflight checklist
+      options:
+        - label: I have searched existing issues and this has not already been reported.
+          required: true
+        - label: This is not a security vulnerability (those go through private reporting).
+          required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the bug, including what you expected to happen.
+      placeholder: When I convert an MKV to MP4, the download button does nothing...
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Exact steps so the issue can be reproduced.
+      placeholder: |
+        1. Upload file X
+        2. Choose format Y
+        3. Click Convert
+        4. See error
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version / commit
+      description: Release tag or commit SHA you are running (`git rev-parse --short HEAD`).
+    validations:
+      required: false
+  - type: dropdown
+    id: install-method
+    attributes:
+      label: How are you running it?
+      options:
+        - Docker / Docker Compose
+        - Windows (setup.bat)
+        - Linux / macOS (setup.sh)
+        - Manual (venv)
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: e.g. Windows 11, Ubuntu 24.04, macOS 15
+    validations:
+      required: false
+  - type: input
+    id: ffmpeg
+    attributes:
+      label: FFmpeg version
+      description: Output of `ffmpeg -version` (first line). Leave blank if using Docker.
+    validations:
+      required: false
+  - type: dropdown
+    id: gpu
+    attributes:
+      label: GPU acceleration
+      options:
+        - "Not used / CPU only"
+        - NVIDIA NVENC
+        - AMD AMF
+        - Intel QSV
+        - VA-API
+        - "Not sure"
+    validations:
+      required: false
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs / console output
+      description: Paste any error output. This is automatically formatted as code.
+      render: shell
+    validations:
+      required: false
