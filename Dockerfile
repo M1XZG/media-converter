@@ -11,7 +11,12 @@
 # Without a GPU, the container works fine using CPU encoding.
 # ---------------------------------------------------------------------------
 
-FROM nvidia/cuda:13.3.0-runtime-ubuntu24.04
+# CUDA base image pinned to 12.6.3: the tag must stay compatible with the
+# NVIDIA driver on the host, because the NVIDIA Container Toolkit refuses to
+# start an image whose required CUDA version is newer than the host driver
+# supports (e.g. cuda>=13.3 needs a very recent driver). Do not let this drift
+# to "latest" via automated bumps — see the ignore rule in .github/dependabot.yml.
+FROM nvidia/cuda:12.6.3-runtime-ubuntu24.04
 
 # Avoid interactive prompts during package install
 ENV DEBIAN_FRONTEND=noninteractive

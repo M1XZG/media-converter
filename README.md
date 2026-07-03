@@ -48,11 +48,13 @@ cd media-converter
 docker compose up -d
 ```
 
-Open **http://localhost:5000**. GPU acceleration works automatically if you have the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html) installed.
+Open **http://localhost:5000**. GPU acceleration works automatically if you have an NVIDIA GPU and the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html) installed.
+
+> **Driver compatibility:** the image is based on `nvidia/cuda:12.6.3`. The NVIDIA Container Toolkit will refuse to start a CUDA image that is newer than your host driver supports, so if GPU startup fails with a `cuda>=...` requirement error, either update your NVIDIA driver or pin the `FROM` line in the `Dockerfile` to a CUDA version your driver supports.
 
 **Without GPU support:**
 
-Remove the `deploy` block from `docker-compose.yml`, or run directly:
+Remove the `gpus: all` line (and the `NVIDIA_*` environment variables) from `docker-compose.yml`, or run directly:
 
 ```bash
 docker build -t media-converter .
