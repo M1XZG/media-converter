@@ -2,4 +2,4 @@ flask>=3.0
 werkzeug>=3.0
 apscheduler>=3.10
 yt-dlp>=2026.6.9
-curl_cffi>=0.5.10
+curl_cffi>=0.15.0
