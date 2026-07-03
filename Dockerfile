@@ -11,7 +11,7 @@
 # Without a GPU, the container works fine using CPU encoding.
 # ---------------------------------------------------------------------------
 
-FROM nvidia/cuda:12.6.3-runtime-ubuntu24.04
+FROM nvidia/cuda:13.3.0-runtime-ubuntu24.04
 
 # Avoid interactive prompts during package install
 ENV DEBIAN_FRONTEND=noninteractive
