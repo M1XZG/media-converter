@@ -608,6 +608,58 @@
             border: 1px solid var(--success);
         }
 
+        /* GIF Options */
+        .gif-section {
+            display: none;
+            margin-bottom: 1.5rem;
+        }
+
+        .gif-section.visible {
+            display: block;
+        }
+
+        .gif-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 0.85rem;
+        }
+
+        .gif-field {
+            display: flex;
+            flex-direction: column;
+            gap: 0.35rem;
+        }
+
+        .gif-field label {
+            font-size: 0.72rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .gif-input {
+            padding: 0.55rem 0.65rem;
+            border: 2px solid var(--border-color);
+            border-radius: 10px;
+            background: var(--bg-input);
+            color: var(--text-primary);
+            font-size: 0.85rem;
+            font-weight: 600;
+            transition: all var(--transition-speed);
+        }
+
+        .gif-input:focus {
+            outline: none;
+            border-color: var(--border-focus);
+        }
+
+        .gif-hint {
+            font-size: 0.72rem;
+            color: var(--text-muted);
+            margin-top: 0.6rem;
+        }
+
         /* Convert Button */
         .convert-btn {
             width: 100%;
@@ -1168,9 +1220,12 @@
                     <button class="mode-tab" data-mode="audio" onclick="setMode('audio')">
                         🎵 Audio Only
                     </button>
+                    <button class="mode-tab" data-mode="gif" onclick="setMode('gif')">
+                        🎞️ GIF
+                    </button>
                 </div>
 
-                <div class="option-label">Output Format</div>
+                <div class="option-label" id="format-label">Output Format</div>
 
                 <!-- Video Formats -->
                 <div class="format-grid" id="video-formats">
@@ -1198,6 +1253,42 @@
                 <div class="resolution-section" id="resolution-section">
                     <div class="option-label">Output Resolution</div>
                     <div class="resolution-grid" id="resolution-grid"></div>
+                </div>
+
+                <!-- GIF Options (gif mode only) -->
+                <div class="gif-section" id="gif-section">
+                    <div class="option-label">GIF Options</div>
+                    <div class="gif-grid">
+                        <div class="gif-field">
+                            <label for="gif-fps">Frame Rate (fps)</label>
+                            <select class="gif-input" id="gif-fps">
+                                <option value="10">10 fps</option>
+                                <option value="15" selected>15 fps</option>
+                                <option value="20">20 fps</option>
+                                <option value="25">25 fps</option>
+                                <option value="30">30 fps</option>
+                            </select>
+                        </div>
+                        <div class="gif-field">
+                            <label for="gif-width">Width</label>
+                            <select class="gif-input" id="gif-width">
+                                <option value="320">320 px</option>
+                                <option value="480" selected>480 px</option>
+                                <option value="640">640 px</option>
+                                <option value="800">800 px</option>
+                                <option value="">Original</option>
+                            </select>
+                        </div>
+                        <div class="gif-field">
+                            <label for="gif-start">Start (seconds)</label>
+                            <input class="gif-input" id="gif-start" type="number" min="0" step="0.1" placeholder="0" />
+                        </div>
+                        <div class="gif-field">
+                            <label for="gif-length">Length (seconds)</label>
+                            <input class="gif-input" id="gif-length" type="number" min="0" step="0.1" placeholder="whole clip" />
+                        </div>
+                    </div>
+                    <div class="gif-hint">Tip: Keep GIFs short (a few seconds) and small to avoid very large files.</div>
                 </div>
 
                 <button class="convert-btn" id="convert-btn" onclick="startConversion()">
@@ -1479,6 +1570,12 @@
             document.getElementById('video-formats').style.display = mode === 'video' ? '' : 'none';
             document.getElementById('audio-formats').style.display = mode === 'audio' ? '' : 'none';
 
+            // Hide the "Output Format" label and format grids entirely in GIF mode
+            document.getElementById('format-label').style.display = mode === 'gif' ? 'none' : '';
+
+            // Show GIF options only in gif mode
+            document.getElementById('gif-section').classList.toggle('visible', mode === 'gif');
+
             // Show resolution options only in video mode
             const resSec = document.getElementById('resolution-section');
             if (mode === 'video' && sourceWidth && sourceHeight) {
@@ -1594,16 +1691,29 @@
             document.getElementById('result-section').classList.remove('visible');
             document.getElementById('result-section').innerHTML = '';
 
+            const payload = {
+                file_id: currentFileId,
+                format: format,
+                mode: currentMode,
+                duration_seconds: currentDurationSeconds,
+                resolution: currentResolution,
+            };
+
+            if (currentMode === 'gif') {
+                const fps = document.getElementById('gif-fps').value;
+                const width = document.getElementById('gif-width').value;
+                const start = document.getElementById('gif-start').value;
+                const length = document.getElementById('gif-length').value;
+                payload.gif_fps = fps ? parseInt(fps, 10) : 15;
+                payload.gif_width = width ? parseInt(width, 10) : null;
+                payload.gif_start = start ? parseFloat(start) : null;
+                payload.gif_duration = length ? parseFloat(length) : null;
+            }
+
             fetch('/convert', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    file_id: currentFileId,
-                    format: format,
-                    mode: currentMode,
-                    duration_seconds: currentDurationSeconds,
-                    resolution: currentResolution,
-                }),
+                body: JSON.stringify(payload),
             })
             .then(r => r.json().then(data => ({ status: r.status, data })))
             .then(({ status, data }) => {

@@ -476,13 +476,19 @@ def convert():
 
     file_id = data.get("file_id")
     output_format = data.get("format", "").lower()
-    mode = data.get("mode", "video")  # "video" or "audio"
+    mode = data.get("mode", "video")  # "video", "audio", or "gif"
     total_duration = data.get("duration_seconds")  # seconds, from upload probe
     target_resolution = data.get("resolution")  # e.g. "1920x1080" or null for original
 
+    # GIF-specific options (only used when mode == "gif")
+    gif_fps = data.get("gif_fps")
+    gif_width = data.get("gif_width")  # target width in px, or null for original
+    gif_start = data.get("gif_start")  # trim start in seconds, or null
+    gif_duration = data.get("gif_duration")  # trim length in seconds, or null
+
     # Determine if we are upscaling (need higher quality settings)
     is_upscaling = False
-    if target_resolution and mode != "audio":
+    if target_resolution and mode not in ("audio", "gif"):
         try:
             _tw, _th = target_resolution.split("x")
             # Compare target height to source — we don't know source here yet,
@@ -491,7 +497,7 @@ def convert():
         except (ValueError, AttributeError):
             pass
 
-    if not file_id or not output_format:
+    if not file_id or (not output_format and mode != "gif"):
         return jsonify({"error": "Missing file_id or format."}), 400
 
     # Reject if a conversion is already running for this file
@@ -509,7 +515,7 @@ def convert():
         return jsonify({"error": "Upload not found. It may have expired."}), 404
 
     # Refine upscaling detection by probing source resolution
-    if target_resolution and mode != "audio":
+    if target_resolution and mode not in ("audio", "gif"):
         probe_data = _probe_file(source_file)
         src_h = None
         for stream in probe_data.get("streams", []):
@@ -530,6 +536,8 @@ def convert():
         if output_format not in AUDIO_OUTPUT_FORMATS:
             return jsonify({"error": f"Unsupported audio format: {output_format}"}), 400
         out_ext = AUDIO_OUTPUT_FORMATS[output_format]["ext"]
+    elif mode == "gif":
+        out_ext = ".gif"
     else:
         if output_format not in VIDEO_OUTPUT_FORMATS:
             return jsonify({"error": f"Unsupported video format: {output_format}"}), 400
@@ -545,8 +553,9 @@ def convert():
     # Build FFmpeg command
     cmd = ["ffmpeg", "-y"]
 
-    # Add hardware-accelerated decoding if GPU is available
-    if gpu and mode != "audio":
+    # Add hardware-accelerated decoding if GPU is available.
+    # Skipped for audio (no video) and GIF (filter graph runs on CPU frames).
+    if gpu and mode not in ("audio", "gif"):
         if gpu["name"] == "nvenc":
             cmd.extend(["-hwaccel", "cuda"])
         elif gpu["name"] == "qsv":
@@ -555,9 +564,52 @@ def convert():
             cmd.extend(["-hwaccel", "vaapi",
                         "-hwaccel_device", "/dev/dri/renderD128"])
 
+    # For GIF, an optional trim start is applied before the input for fast seeking.
+    gif_trim_length = None
+    if mode == "gif":
+        try:
+            start_val = float(gif_start) if gif_start is not None else 0.0
+        except (ValueError, TypeError):
+            start_val = 0.0
+        if start_val > 0:
+            cmd.extend(["-ss", str(start_val)])
+
     cmd.extend(["-i", str(source_file)])
 
-    if mode == "audio":
+    if mode == "gif":
+        # Optional trim length (applied after input)
+        try:
+            length_val = float(gif_duration) if gif_duration is not None else 0.0
+        except (ValueError, TypeError):
+            length_val = 0.0
+        if length_val > 0:
+            cmd.extend(["-t", str(length_val)])
+            gif_trim_length = length_val
+
+        # Frame rate (clamped to a sane range)
+        try:
+            fps_val = int(gif_fps) if gif_fps is not None else 15
+        except (ValueError, TypeError):
+            fps_val = 15
+        fps_val = max(1, min(fps_val, 50))
+
+        # Target width (height auto to preserve aspect ratio). -1 keeps original.
+        try:
+            width_val = int(gif_width) if gif_width is not None else -1
+        except (ValueError, TypeError):
+            width_val = -1
+        scale_w = width_val if width_val and width_val > 0 else -1
+
+        # High-quality GIF via per-frame palette generation and dithering.
+        vf = (
+            f"fps={fps_val},"
+            f"scale={scale_w}:-1:flags=lanczos,"
+            f"split[s0][s1];[s0]palettegen=stats_mode=diff[p];"
+            f"[s1][p]paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle"
+        )
+        cmd.extend(["-vf", vf, "-loop", "0"])
+    elif mode == "audio":
+
         # Extract audio only — GPU not used for audio
         cmd.extend(["-vn"])  # no video
         if output_format == "mp3":
@@ -623,7 +675,7 @@ def convert():
                         "-codec:a", "libmp3lame", "-q:a", "4"])
 
     # Apply resolution scaling if requested (video mode only)
-    if mode != "audio" and target_resolution:
+    if mode not in ("audio", "gif") and target_resolution:
         try:
             tw, th = target_resolution.split("x")
             tw, th = int(tw), int(th)
@@ -659,7 +711,7 @@ def convert():
         "hw_accel_used": hw_accel_used,
         "gpu_label": gpu.get("label", "") if hw_accel_used else "",
         "process": None,
-        "duration": total_duration or 0,
+        "duration": (gif_trim_length if mode == "gif" and gif_trim_length else total_duration) or 0,
     }
     _active_jobs[file_id] = job
 
