@@ -32,3 +32,10 @@ updates:
       - "docker"
     commit-message:
       prefix: "docker"
+    ignore:
+      # The nvidia/cuda base image tag must stay compatible with the NVIDIA
+      # driver installed on the host. The NVIDIA Container Toolkit refuses to
+      # start an image that requires a newer CUDA version than the host driver
+      # supports (e.g. cuda>=13.3), which breaks GPU acceleration. Bump this
+      # base image manually and deliberately, not via automated PRs.
+      - dependency-name: "nvidia/cuda"
