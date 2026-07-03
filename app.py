@@ -751,6 +751,28 @@ def convert():
             )
             job["process"] = proc
 
+            # Drain stderr concurrently to avoid a pipe-buffer deadlock. FFmpeg
+            # writes progress to stdout (pipe:1) and its logs to stderr. On
+            # Windows the anonymous pipe buffer is small (~4 KB); if we only read
+            # stdout, ffmpeg can block writing stderr while we block reading
+            # stdout, hanging the conversion forever. Collect stderr in a
+            # background thread so it never fills up, and keep it for error output.
+            stderr_chunks: list[str] = []
+
+            def _drain_stderr(pipe):
+                try:
+                    for err_line in pipe:
+                        stderr_chunks.append(err_line)
+                except Exception:
+                    pass
+
+            stderr_thread = None
+            if proc.stderr is not None:
+                stderr_thread = threading.Thread(
+                    target=_drain_stderr, args=(proc.stderr,), daemon=True
+                )
+                stderr_thread.start()
+
             dur = job["duration"]
 
             # Read progress from stdout line by line
@@ -789,9 +811,12 @@ def convert():
             if job["status"] == "aborted":
                 return  # already handled by abort endpoint
 
+            if stderr_thread is not None:
+                stderr_thread.join(timeout=5)
+
             if proc.returncode != 0:
-                stderr_out = proc.stderr.read() if proc.stderr else ""
-                error_msg = stderr_out.strip().split("\n")[-1] if stderr_out else "Conversion failed."
+                stderr_out = "".join(stderr_chunks)
+                error_msg = stderr_out.strip().split("\n")[-1] if stderr_out.strip() else "Conversion failed."
                 job["status"] = "error"
                 job["error"] = f"FFmpeg error: {error_msg}"
             else:
