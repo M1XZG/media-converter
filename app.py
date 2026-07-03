@@ -9,6 +9,7 @@ import json
 import shutil
 import re
 import threading
+import time
 import io
 import zipfile
 from datetime import datetime, timedelta
@@ -81,6 +82,27 @@ PORNHUB_DOWNLOADS_FOLDER.mkdir(parents=True, exist_ok=True)
 # Active conversion jobs: file_id -> job dict
 _active_jobs: dict[str, dict] = {}
 _youtube_jobs: dict[str, dict] = {}
+
+# Cap the in-memory job maps so long-running instances don't leak memory.
+# Finished jobs (complete/error/aborted) are discarded oldest-first once the
+# cap is exceeded; in-progress jobs are always kept.
+_JOB_RETENTION = 500
+
+
+def _prune_jobs(jobs: dict) -> None:
+    """Bound an in-memory job map by discarding the oldest finished jobs."""
+    if len(jobs) <= _JOB_RETENTION:
+        return
+    finished = [
+        (job_id, job)
+        for job_id, job in jobs.items()
+        if job.get("status") in ("complete", "error", "aborted")
+    ]
+    finished.sort(key=lambda item: item[1].get("created", 0))
+    for job_id, _ in finished:
+        if len(jobs) <= _JOB_RETENTION:
+            break
+        jobs.pop(job_id, None)
 
 YOUTUBE_QUALITY_OPTIONS = {
     "best": "Best",
@@ -712,8 +734,10 @@ def convert():
         "gpu_label": gpu.get("label", "") if hw_accel_used else "",
         "process": None,
         "duration": (gif_trim_length if mode == "gif" and gif_trim_length else total_duration) or 0,
+        "created": time.time(),
     }
     _active_jobs[file_id] = job
+    _prune_jobs(_active_jobs)
 
     def _run_conversion():
         """Run FFmpeg in the background, parsing progress output."""
@@ -923,8 +947,10 @@ def youtube_download():
         "mode": mode,
         "quality": quality,
         "audio_format": audio_format,
+        "created": time.time(),
     }
     _youtube_jobs[job_id] = job
+    _prune_jobs(_youtube_jobs)
 
     cmd = [
         "yt-dlp",

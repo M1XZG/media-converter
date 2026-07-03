@@ -13,6 +13,7 @@ A self-hosted web application for converting video files between formats and ext
 - [Configuration](#configuration)
 - [Supported Formats](#supported-formats)
 - [Project Structure](#project-structure)
+- [Security](#security)
 - [License](#license)
 
 ---
@@ -42,7 +43,7 @@ A self-hosted web application for converting video files between formats and ext
 <summary><strong>🐳 Docker (recommended)</strong></summary>
 
 ```bash
-git clone https://github.com/yourusername/media-converter.git
+git clone https://github.com/M1XZG/media-converter.git
 cd media-converter
 docker compose up -d
 ```
@@ -66,7 +67,7 @@ docker run -d -p 5000:5000 --name media-converter media-converter
 **Prerequisites:** Python 3.8+ and [FFmpeg](#installing-ffmpeg) on your PATH.
 
 ```bash
-git clone https://github.com/yourusername/media-converter.git
+git clone https://github.com/M1XZG/media-converter.git
 cd media-converter
 setup.bat
 ```
@@ -79,7 +80,7 @@ setup.bat
 **Prerequisites:** Python 3.8+ and [FFmpeg](#installing-ffmpeg) on your PATH.
 
 ```bash
-git clone https://github.com/yourusername/media-converter.git
+git clone https://github.com/M1XZG/media-converter.git
 cd media-converter
 chmod +x setup.sh
 ./setup.sh
@@ -257,6 +258,32 @@ media-converter/
     ├── tiktok/          # Persistent TikTok downloads (not auto-cleaned)
     └── twitter/         # Persistent X/Twitter downloads (not auto-cleaned)
 ```
+
+---
+
+## Security
+
+Media Converter is designed as a **self-hosted tool for a trusted network** (your own
+machine or LAN). Please read this before exposing it to the internet.
+
+- **There is no authentication.** Anyone who can reach the port can upload, convert,
+  download media, browse the library, and delete files. Do not expose the app directly to
+  the public internet. If you need remote access, put it behind a reverse proxy (nginx,
+  Caddy, Traefik) that enforces authentication and TLS, or restrict access with a VPN or
+  firewall rules.
+- **It binds to `0.0.0.0` by default** so it is reachable from other machines on your
+  network. Set `FLASK_HOST=127.0.0.1` to restrict it to the local machine only.
+- **Uploads are unlimited by default** (`MAX_CONTENT_LENGTH=0`). On a shared or exposed
+  host this allows disk-fill denial of service. Set `MAX_CONTENT_LENGTH` (in bytes) to cap
+  upload size, for example `MAX_CONTENT_LENGTH=2147483648` for a 2 GB limit.
+- **The `downloads/` folder is never auto-cleaned.** Downloaded media persists until you
+  delete it, so monitor disk usage if you use the downloader heavily.
+- **FFmpeg and yt-dlp process untrusted media and URLs.** Keep them up to date so you pick
+  up upstream security fixes (`pip install -U -r requirements.txt`, and update FFmpeg via
+  your package manager or the Docker base image).
+
+To report a security vulnerability, please use GitHub's private vulnerability reporting
+(see [SECURITY.md](SECURITY.md)). Do not open a public issue for security problems.
 
 ---
 
