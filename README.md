@@ -64,7 +64,7 @@ docker run -d -p 5000:5000 --name media-converter media-converter
 <details>
 <summary><strong>🪟 Windows</strong></summary>
 
-**Prerequisites:** Python 3.8+ and [FFmpeg](#installing-ffmpeg) on your PATH.
+**Prerequisites:** Python 3.10+ and [FFmpeg](#installing-ffmpeg) on your PATH.
 
 ```bash
 git clone https://github.com/M1XZG/media-converter.git
@@ -77,7 +77,7 @@ setup.bat
 <details>
 <summary><strong>🐧 Linux / macOS</strong></summary>
 
-**Prerequisites:** Python 3.8+ and [FFmpeg](#installing-ffmpeg) on your PATH.
+**Prerequisites:** Python 3.10+ and [FFmpeg](#installing-ffmpeg) on your PATH.
 
 ```bash
 git clone https://github.com/M1XZG/media-converter.git
@@ -91,7 +91,7 @@ chmod +x setup.sh
 <details>
 <summary><strong>⚙️ Manual Setup</strong></summary>
 
-**Prerequisites:** Python 3.8+ and [FFmpeg](#installing-ffmpeg) on your PATH.
+**Prerequisites:** Python 3.10+ and [FFmpeg](#installing-ffmpeg) on your PATH.
 
 ```bash
 # Create and activate virtual environment
