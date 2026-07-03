@@ -34,7 +34,7 @@ revert.
 
 ## Development setup
 
-Prerequisites: Python 3.8+ and [FFmpeg](README.md#installing-ffmpeg) on your PATH.
+Prerequisites: Python 3.10+ and [FFmpeg](README.md#installing-ffmpeg) on your PATH.
 
 ```bash
 git clone https://github.com/M1XZG/media-converter.git
@@ -62,7 +62,7 @@ You can also run it with Docker: `docker compose up -d`.
 
 ## Coding guidelines
 
-- Target Python 3.8+ and keep dependencies minimal; discuss new dependencies first.
+- Target Python 3.10+ and keep dependencies minimal; discuss new dependencies first.
 - Match the existing style: clear names, small functions, comments only where they add
   clarity.
 - Build subprocess commands as argument lists (never `shell=True`) and validate any
