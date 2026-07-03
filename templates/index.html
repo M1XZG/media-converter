@@ -1832,18 +1832,31 @@
         /* ============================================================
            Results
         ============================================================ */
+        // Escape values before injecting them into innerHTML. Server responses
+        // (e.g. ffmpeg/yt-dlp error text) can reflect a user-supplied URL or
+        // filename, so treat every interpolated value as untrusted.
+        function escapeHtml(value) {
+            return String(value ?? '').replace(/[&<>"']/g, (ch) => ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#39;',
+            }[ch]));
+        }
+
         function showSuccess(data) {
             const gpuNote = data.gpu_used
-                ? `<div style="font-size: 0.775rem; color: var(--text-muted); margin-bottom: 0.5rem;">⚡ GPU-accelerated (${data.gpu_label})</div>`
+                ? `<div style="font-size: 0.775rem; color: var(--text-muted); margin-bottom: 0.5rem;">⚡ GPU-accelerated (${escapeHtml(data.gpu_label)})</div>`
                 : '';
             const section = document.getElementById('result-section');
             section.innerHTML = `
                 <div class="result-success">
                     <div class="result-icon">✅</div>
                     <div class="result-message">Conversion Complete!</div>
-                    <div class="result-size">Output file size: ${data.output_size}</div>
+                    <div class="result-size">Output file size: ${escapeHtml(data.output_size)}</div>
                     ${gpuNote}
-                    <a href="/download/${data.download_id}" class="download-btn">
+                    <a href="/download/${encodeURIComponent(data.download_id)}" class="download-btn">
                         ⬇️ Download File
                     </a>
                     <br>
@@ -1858,8 +1871,8 @@
             section.innerHTML = `
                 <div class="result-error">
                     <div class="result-icon">❌</div>
-                    <div class="result-message">${title}</div>
-                    <div class="result-detail">${detail}</div>
+                    <div class="result-message">${escapeHtml(title)}</div>
+                    <div class="result-detail">${escapeHtml(detail)}</div>
                     <button class="new-conversion-btn" onclick="resetAll()">Try Again</button>
                 </div>
             `;
@@ -2024,8 +2037,8 @@
             result.innerHTML = `
                 <div class="result-success">
                     <div class="result-icon">✅</div>
-                    <div class="result-message">${serviceLabel} Download Complete!</div>
-                    <div class="result-size">Output file size: ${data.output_size || 'Unknown'}</div>
+                    <div class="result-message">${escapeHtml(serviceLabel)} Download Complete!</div>
+                    <div class="result-size">Output file size: ${escapeHtml(data.output_size || 'Unknown')}</div>
                     <a href="${downloadHref}" class="download-btn">⬇️ Download File</a>
                 </div>
             `;
@@ -2037,7 +2050,7 @@
                 <div class="result-error">
                     <div class="result-icon">❌</div>
                     <div class="result-message">Download Failed</div>
-                    <div class="result-detail">${detail}</div>
+                    <div class="result-detail">${escapeHtml(detail)}</div>
                 </div>
             `;
         }
