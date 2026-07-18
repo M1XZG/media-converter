@@ -1105,11 +1105,11 @@
             </div>
         </header>
 
-        <!-- Main Card -->
+        <!-- Main Card (converter) -->
+        {% if enable_converter %}
         <div class="card">
 
         <!-- Info Banner -->
-        {% if enable_converter %}
         <div class="info-banner">
             <h2>Convert Videos, Extract Audio &amp; Make GIFs — Right in Your Browser</h2>
             <p>
@@ -1171,48 +1171,15 @@
                 {% endif %}
             </div>
         </div>
-        {% endif %}
 
-        {% if enable_downloader and not enable_converter %}
-        <div class="info-banner">
-            <h2>Download Media from Supported Platforms</h2>
-            <p>
-                Paste a link from a supported platform and save the video or audio straight to the server.
-                Downloading happens server-side using yt-dlp — your browser simply kicks off the job and retrieves the file.
-            </p>
-            <div class="info-grid">
-                <div class="info-item">
-                    <span class="icon">🎬</span>
-                    <span><strong>Video &amp; audio</strong> — download full video or extract audio only</span>
-                </div>
-                <div class="info-item">
-                    <span class="icon">🔒</span>
-                    <span><strong>Self-hosted</strong> — runs entirely on your own server</span>
-                </div>
-                <div class="info-item">
-                    <span class="icon">📁</span>
-                    <span><strong>Organised</strong> — files saved under downloads/&lt;service&gt;</span>
-                </div>
-            </div>
-        </div>
-        {% endif %}
-
-        {% if enable_converter and not ffmpeg_ok %}
+        {% if not ffmpeg_ok %}
         <div class="ffmpeg-warning">
             <span>⚠️</span>
             <span><strong>FFmpeg not found.</strong> Please install FFmpeg and make sure it's on your system PATH. Conversions will fail without it.</span>
         </div>
         {% endif %}
 
-        {% if enable_downloader and not ytdlp_ok %}
-        <div class="ffmpeg-warning" style="margin-top: -1rem;">
-            <span>⚠️</span>
-            <span><strong>yt-dlp not found.</strong> Social media downloads will fail without yt-dlp on your system PATH.</span>
-        </div>
-        {% endif %}
-
             <!-- Drop Zone -->
-            {% if enable_converter %}
             <div class="drop-zone" id="drop-zone">
                 <div class="drop-zone-icon">📤</div>
                 <div class="drop-zone-text">Drop your video file here</div>
@@ -1347,11 +1314,17 @@
 
             <!-- Result -->
             <div class="result-section" id="result-section"></div>
-            {% endif %}
         </div>
+        {% endif %}
 
         <!-- Downloader Card -->
         {% if enable_downloader %}
+        {% if not ytdlp_ok %}
+        <div class="ffmpeg-warning">
+            <span>⚠️</span>
+            <span><strong>yt-dlp not found.</strong> Social media downloads will fail without yt-dlp on your system PATH.</span>
+        </div>
+        {% endif %}
         <div class="card">
 
             <!-- Social Media Downloader -->
