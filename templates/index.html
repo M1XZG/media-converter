@@ -2089,12 +2089,11 @@
         function showYoutubeSuccess(data) {
             const result = document.getElementById('youtube-result');
             const serviceLabel = data.service_label || 'Media';
-            {% if enable_file_manager %}
-            const downloadHref = `/files/download?root=${encodeURIComponent(data.download_root || 'downloads')}&path=${encodeURIComponent(data.download_path || '')}`;
+            // Job-scoped link so the requester can grab their own file even when
+            // the file manager (browse-everything) is disabled.
+            const downloadHref = data.download_url
+                || `/files/download?root=${encodeURIComponent(data.download_root || 'downloads')}&path=${encodeURIComponent(data.download_path || '')}`;
             const downloadLink = `<a href="${downloadHref}" class="download-btn">⬇️ Download File</a>`;
-            {% else %}
-            const downloadLink = '<div class="result-size">Saved to the server.</div>';
-            {% endif %}
             result.innerHTML = `
                 <div class="result-success">
                     <div class="result-icon">✅</div>

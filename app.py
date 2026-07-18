@@ -1359,6 +1359,7 @@ def youtube_progress(job_id):
         resp["download_id"] = job["output_name"]
         resp["download_root"] = "downloads"
         resp["download_path"] = f"{job['service']}/{job['output_name']}"
+        resp["download_url"] = f"/media/file/{job_id}"
         resp["output_size"] = job["output_size"]
         resp["service"] = job["service"]
         resp["service_label"] = job["service_label"]
@@ -1368,6 +1369,34 @@ def youtube_progress(job_id):
         resp["error"] = f"{job['service_label']} download was aborted."
 
     return jsonify(resp)
+
+
+@app.route("/media/file/<job_id>")
+@app.route("/youtube/file/<job_id>")
+@_require_downloader
+def media_download_file(job_id):
+    """Serve the finished file for a single, specific download job.
+
+    Scoped to one known job id (a random UUID that was handed to the requester
+    when they started the download), so the person who requested a download can
+    immediately retrieve their file. Unlike the file manager, this exposes no
+    browsable listing, so visitors can't see what others have downloaded. Works
+    regardless of the ENABLE_FILE_MANAGER setting.
+    """
+    job = _youtube_jobs.get(job_id)
+    if not job or job.get("status") != "complete":
+        abort(404)
+
+    output_name = job.get("output_name")
+    service = job.get("service")
+    if not output_name or service not in SUPPORTED_DOWNLOAD_SERVICES:
+        abort(404)
+
+    filepath = SUPPORTED_DOWNLOAD_SERVICES[service]["folder"] / output_name
+    if not filepath.exists() or not filepath.is_file():
+        abort(404)
+
+    return send_file(str(filepath), as_attachment=True, download_name=output_name)
 
 
 @app.route("/media/abort/<job_id>", methods=["POST"])
