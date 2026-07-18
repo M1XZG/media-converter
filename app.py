@@ -39,6 +39,7 @@ INSTAGRAM_DOWNLOADS_FOLDER = DOWNLOADS_FOLDER / "instagram"
 TIKTOK_DOWNLOADS_FOLDER = DOWNLOADS_FOLDER / "tiktok"
 TWITTER_DOWNLOADS_FOLDER = DOWNLOADS_FOLDER / "twitter"
 PORNHUB_DOWNLOADS_FOLDER = DOWNLOADS_FOLDER / "pornhub"
+SPOTIFY_DOWNLOADS_FOLDER = DOWNLOADS_FOLDER / "spotify"
 CLEANUP_HOURS = int(os.environ.get("CLEANUP_HOURS", 24))
 
 ALLOWED_INPUT_EXTENSIONS = {
@@ -78,6 +79,7 @@ INSTAGRAM_DOWNLOADS_FOLDER.mkdir(parents=True, exist_ok=True)
 TIKTOK_DOWNLOADS_FOLDER.mkdir(parents=True, exist_ok=True)
 TWITTER_DOWNLOADS_FOLDER.mkdir(parents=True, exist_ok=True)
 PORNHUB_DOWNLOADS_FOLDER.mkdir(parents=True, exist_ok=True)
+SPOTIFY_DOWNLOADS_FOLDER.mkdir(parents=True, exist_ok=True)
 
 # Active conversion jobs: file_id -> job dict
 _active_jobs: dict[str, dict] = {}
@@ -140,6 +142,14 @@ SUPPORTED_DOWNLOAD_SERVICES = {
         "domains": ("pornhub.com",),
         "hidden": True,
     },
+    "spotify": {
+        "label": "Spotify",
+        "folder": SPOTIFY_DOWNLOADS_FOLDER,
+        "domains": ("open.spotify.com", "spotify.com"),
+        # Spotify streams are DRM-protected; spotdl fetches the matching
+        # audio from YouTube, so downloads are always audio-only.
+        "audio_only": True,
+    },
 }
 
 
@@ -155,6 +165,11 @@ def _ffmpeg_available() -> bool:
 def _ytdlp_available() -> bool:
     """Check if yt-dlp is accessible on the system PATH."""
     return shutil.which("yt-dlp") is not None
+
+
+def _spotdl_available() -> bool:
+    """Check if spotdl is accessible on the system PATH."""
+    return shutil.which("spotdl") is not None
 
 
 def _is_supported_youtube_url(url: str) -> bool:
@@ -924,9 +939,6 @@ def download(download_id):
 @app.route("/youtube/download", methods=["POST"])
 def youtube_download():
     """Start a background media download job for supported services."""
-    if not _ytdlp_available():
-        return jsonify({"error": "yt-dlp is not installed or not found on PATH."}), 500
-
     data = request.get_json() or {}
     url = (data.get("url") or "").strip()
     mode = (data.get("mode") or "video").strip().lower()
@@ -943,6 +955,16 @@ def youtube_download():
 
     service_info = SUPPORTED_DOWNLOAD_SERVICES[service]
     output_folder = service_info["folder"]
+    is_spotify = service_info.get("audio_only", False)
+
+    if is_spotify:
+        if not _spotdl_available():
+            return jsonify({"error": "spotdl is not installed or not found on PATH."}), 500
+        # Spotify streams are DRM-protected; spotdl matches and fetches the
+        # audio from YouTube, so these downloads are always audio-only.
+        mode = "audio"
+    elif not _ytdlp_available():
+        return jsonify({"error": "yt-dlp is not installed or not found on PATH."}), 500
 
     if mode not in {"video", "audio"}:
         return jsonify({"error": "Unsupported mode. Use 'video' or 'audio'."}), 400
@@ -953,8 +975,11 @@ def youtube_download():
     if mode == "audio" and audio_format not in YOUTUBE_AUDIO_FORMATS:
         return jsonify({"error": "Unsupported audio format. Use mp3 or aac."}), 400
 
+    # spotdl stores AAC audio in an m4a container.
+    spotdl_format = "m4a" if audio_format == "aac" else audio_format
+    download_ext = "mp4" if mode == "video" else (spotdl_format if is_spotify else audio_format)
+
     job_id = uuid.uuid4().hex
-    output_template = str(output_folder / f"{job_id}.%(ext)s")
 
     job = {
         "status": "downloading",
@@ -977,46 +1002,62 @@ def youtube_download():
     _youtube_jobs[job_id] = job
     _prune_jobs(_youtube_jobs)
 
-    cmd = [
-        "yt-dlp",
-        "--no-playlist",
-        "--newline",
-        "--progress",
-        "--restrict-filenames",
-        "-o",
-        output_template,
-    ]
-
-    if mode == "video":
-        quality_formats = {
-            "best": "bv*+ba/b",
-            "1080": "bv*[height<=1080]+ba/b[height<=1080]",
-            "720": "bv*[height<=720]+ba/b[height<=720]",
-            "480": "bv*[height<=480]+ba/b[height<=480]",
-        }
-        cmd.extend([
-            "-f",
-            quality_formats[quality],
-            # Prefer H.264 video and AAC audio for broad playback compatibility.
-            # Some sites (e.g. TikTok) default to HEVC/H.265, which many players
-            # cannot decode correctly and can result in missing audio/video.
-            "-S",
-            "vcodec:h264,acodec:aac",
-            "--merge-output-format",
-            "mp4",
-        ])
+    if is_spotify:
+        # spotdl reads Spotify metadata and downloads the matching audio.
+        # "{output-ext}" is a spotdl template variable expanded at runtime.
+        spotdl_output = str(output_folder / (job_id + ".{output-ext}"))
+        cmd = [
+            "spotdl",
+            "download",
+            url,
+            "--format",
+            spotdl_format,
+            "--output",
+            spotdl_output,
+            "--print-errors",
+        ]
     else:
-        cmd.extend([
-            "-f",
-            "bestaudio/best",
-            "-x",
-            "--audio-format",
-            audio_format,
-            "--audio-quality",
-            "0",
-        ])
+        output_template = str(output_folder / f"{job_id}.%(ext)s")
+        cmd = [
+            "yt-dlp",
+            "--no-playlist",
+            "--newline",
+            "--progress",
+            "--restrict-filenames",
+            "-o",
+            output_template,
+        ]
 
-    cmd.append(url)
+        if mode == "video":
+            quality_formats = {
+                "best": "bv*+ba/b",
+                "1080": "bv*[height<=1080]+ba/b[height<=1080]",
+                "720": "bv*[height<=720]+ba/b[height<=720]",
+                "480": "bv*[height<=480]+ba/b[height<=480]",
+            }
+            cmd.extend([
+                "-f",
+                quality_formats[quality],
+                # Prefer H.264 video and AAC audio for broad playback compatibility.
+                # Some sites (e.g. TikTok) default to HEVC/H.265, which many players
+                # cannot decode correctly and can result in missing audio/video.
+                "-S",
+                "vcodec:h264,acodec:aac",
+                "--merge-output-format",
+                "mp4",
+            ])
+        else:
+            cmd.extend([
+                "-f",
+                "bestaudio/best",
+                "-x",
+                "--audio-format",
+                audio_format,
+                "--audio-quality",
+                "0",
+            ])
+
+        cmd.append(url)
 
     progress_re = re.compile(r"\[download\]\s+(\d+(?:\.\d+)?)%")
     speed_re = re.compile(r"at\s+([^\s]+)")
@@ -1024,7 +1065,7 @@ def youtube_download():
     total_size_re = re.compile(r"of\s+~?\s*([0-9]+(?:\.[0-9]+)?\s*[KMGTPE]?i?B)", re.IGNORECASE)
 
     def _run_download():
-        """Execute yt-dlp and parse progress output."""
+        """Execute the download tool (yt-dlp or spotdl) and parse progress."""
         try:
             proc = subprocess.Popen(
                 cmd,
@@ -1040,6 +1081,20 @@ def youtube_download():
                 for raw_line in proc.stdout:
                     line = raw_line.strip()
                     if not line:
+                        continue
+
+                    if is_spotify:
+                        # spotdl does not emit a byte-level percentage, so we
+                        # advance a coarse, phase-based progress indicator.
+                        low = line.lower()
+                        if "processing query" in low:
+                            job["percent"] = max(job["percent"], 10)
+                        elif line.startswith("Downloaded ") or low.startswith('downloaded "'):
+                            job["percent"] = 95
+                        elif "no results found" in low:
+                            last_error_line = "No matching audio was found for this Spotify track."
+                        elif "error" in low:
+                            last_error_line = line
                         continue
 
                     progress_match = progress_re.search(line)
@@ -1087,10 +1142,10 @@ def youtube_download():
             )
             if not artifacts:
                 job["status"] = "error"
-                job["error"] = "Download completed but output file was not found."
+                job["error"] = last_error_line or "Download completed but output file was not found."
                 return
 
-            expected_ext = ".mp4" if job["mode"] == "video" else f".{job['audio_format']}"
+            expected_ext = f".{download_ext}"
             expected_name = f"{job_id}{expected_ext}"
 
             output_path = next(
@@ -1132,7 +1187,8 @@ def youtube_download():
                 pass
         except FileNotFoundError:
             job["status"] = "error"
-            job["error"] = "yt-dlp is not installed or not found on PATH."
+            tool = "spotdl" if is_spotify else "yt-dlp"
+            job["error"] = f"{tool} is not installed or not found on PATH."
         except Exception as e:
             job["status"] = "error"
             job["error"] = f"Unexpected error: {str(e)}"

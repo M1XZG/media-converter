@@ -1326,15 +1326,16 @@
             <!-- Social Media Downloader -->
             <div id="youtube-section">
                 <div class="youtube-section-title">Download from Supported Platforms</div>
-                <div class="youtube-section-subtitle">Paste a YouTube, Instagram, TikTok, or X/Twitter URL. Files are saved permanently under downloads/&lt;service&gt;.</div>
+                <div class="youtube-section-subtitle">Paste a YouTube, Instagram, TikTok, X/Twitter, or Spotify URL. Spotify links are always saved as audio. Files are saved permanently under downloads/&lt;service&gt;.</div>
 
                 <div class="youtube-input-row">
                     <input
                         id="youtube-url"
                         class="youtube-url-input"
                         type="url"
-                        placeholder="https://www.youtube.com/watch?v=... or https://www.instagram.com/reel/..."
+                        placeholder="https://www.youtube.com/watch?v=... or https://open.spotify.com/track/..."
                         autocomplete="off"
+                        oninput="handleYoutubeUrlInput()"
                     >
                 </div>
 
@@ -1965,6 +1966,27 @@
                 quality.disabled = false;
                 qualityLabel.style.opacity = '1';
                 audioGroup.style.display = 'none';
+            }
+        }
+
+        function handleYoutubeUrlInput() {
+            const url = document.getElementById('youtube-url').value.toLowerCase();
+            const isSpotify = url.includes('spotify.com');
+            const videoTab = document.querySelector('.youtube-mode-tab[data-youtube-mode="video"]');
+
+            // Spotify downloads are always audio-only, so force Audio mode
+            // and disable the Video tab while a Spotify URL is present.
+            if (isSpotify) {
+                if (youtubeMode !== 'audio') {
+                    setYoutubeMode('audio');
+                }
+                videoTab.disabled = true;
+                videoTab.style.opacity = '0.5';
+                videoTab.style.cursor = 'not-allowed';
+            } else {
+                videoTab.disabled = false;
+                videoTab.style.opacity = '';
+                videoTab.style.cursor = '';
             }
         }
 
