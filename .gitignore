@@ -44,3 +44,4 @@ docker-compose.override.yaml
 
 # Downloaded media files
 downloads/
+downloads-downloader/

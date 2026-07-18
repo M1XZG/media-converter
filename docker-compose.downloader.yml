@@ -1,0 +1,31 @@
+# Standalone downloader-only instance.
+#
+# Runs the SAME image as the full app but with the converter and file manager
+# disabled — only the media downloader UI/routes are active. Independent of the
+# main container: its own project name, container name, port, and downloads
+# folder, so you can run both side by side.
+#
+# Start:  docker compose -f docker-compose.downloader.yml up -d --build
+# Stop:   docker compose -f docker-compose.downloader.yml down
+# Open:   http://localhost:5001
+name: media-downloader
+
+services:
+  media-downloader:
+    build: .
+    container_name: media-downloader
+    ports:
+      - "5001:5000"
+    environment:
+      - FLASK_HOST=0.0.0.0
+      - FLASK_PORT=5000
+      # Auto-delete downloaded files after 30 minutes (0/off/disabled = keep).
+      - DOWNLOADS_CLEANUP_MINUTES=30
+      # Downloader only — no video conversion, no file browser.
+      - ENABLE_CONVERTER=false
+      - ENABLE_DOWNLOADER=true
+      - ENABLE_FILE_MANAGER=false
+    volumes:
+      # Isolated from the main container's downloads/ folder.
+      - ./downloads-downloader:/app/downloads
+    restart: unless-stopped
