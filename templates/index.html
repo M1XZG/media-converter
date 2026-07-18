@@ -1096,7 +1096,9 @@
                 <h1>{{ app_title }}</h1>
             </div>
             <div class="header-actions">
+                {% if enable_file_manager %}
                 <a class="header-link" href="/files">Media Library</a>
+                {% endif %}
                 <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme" aria-label="Toggle light/dark theme">
                     <span id="theme-icon">☀️</span>
                 </button>
@@ -1424,7 +1426,7 @@
         {% endif %}
 
         <footer>
-            Media Converter &middot; Self-hosted &middot; Temp files auto-delete after 24 hours
+            {{ app_title }} &middot; Self-hosted{% for note in footer_notes %} &middot; {{ note }}{% endfor %}
         </footer>
     </div>
 
@@ -2086,14 +2088,19 @@
 
         function showYoutubeSuccess(data) {
             const result = document.getElementById('youtube-result');
-            const downloadHref = `/files/download?root=${encodeURIComponent(data.download_root || 'downloads')}&path=${encodeURIComponent(data.download_path || '')}`;
             const serviceLabel = data.service_label || 'Media';
+            {% if enable_file_manager %}
+            const downloadHref = `/files/download?root=${encodeURIComponent(data.download_root || 'downloads')}&path=${encodeURIComponent(data.download_path || '')}`;
+            const downloadLink = `<a href="${downloadHref}" class="download-btn">⬇️ Download File</a>`;
+            {% else %}
+            const downloadLink = '<div class="result-size">Saved to the server.</div>';
+            {% endif %}
             result.innerHTML = `
                 <div class="result-success">
                     <div class="result-icon">✅</div>
                     <div class="result-message">${escapeHtml(serviceLabel)} Download Complete!</div>
                     <div class="result-size">Output file size: ${escapeHtml(data.output_size || 'Unknown')}</div>
-                    <a href="${downloadHref}" class="download-btn">⬇️ Download File</a>
+                    ${downloadLink}
                 </div>
             `;
         }
