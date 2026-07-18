@@ -9,6 +9,10 @@ services:
       - FLASK_HOST=0.0.0.0
       - FLASK_PORT=5000
       - CLEANUP_HOURS=24
+      # How long downloaded files (downloads/ folder) are kept before being
+      # auto-deleted, in minutes. Default 30. Set to 0/off/disabled to keep
+      # downloads forever. Applies only to the media downloader.
+      - DOWNLOADS_CLEANUP_MINUTES=30
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=compute,video,utility
       # Feature flags — control which halves of the app are active.
@@ -20,6 +24,11 @@ services:
       # (If both are set to false the app falls back to full functionality.)
       - ENABLE_CONVERTER=true
       - ENABLE_DOWNLOADER=true
+      # File manager — the "Media Library" browser at /files that can list,
+      # download, and delete every file on the server. Set to false on a public
+      # instance so visitors can't see (or fetch/delete) what others downloaded.
+      # When false, /files and all /files/* endpoints return 403.
+      - ENABLE_FILE_MANAGER=true
     volumes:
       # Persist uploads/converted files across container restarts (optional)
       - ./uploads:/app/uploads

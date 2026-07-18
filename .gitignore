@@ -38,5 +38,9 @@ converted/
 .env
 .flaskenv
 
+# Local Docker Compose overrides (per-host config, not for the repo)
+docker-compose.override.yml
+docker-compose.override.yaml
+
 # Downloaded media files
 downloads/

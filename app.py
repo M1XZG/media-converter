@@ -67,7 +67,36 @@ if not ENABLE_CONVERTER and not ENABLE_DOWNLOADER:
     ENABLE_CONVERTER = True
     ENABLE_DOWNLOADER = True
 
+# File manager (the "Media Library" browser at /files) lets anyone list,
+# download, and delete every file on the server. On a public instance you may
+# want this off so visitors can't see what others have downloaded. When
+# disabled, the /files page and all /files/* endpoints return 403 and no
+# browser file retrieval is offered anywhere in the UI.
+ENABLE_FILE_MANAGER = _env_bool("ENABLE_FILE_MANAGER", True)
+
 APP_TITLE = "Media Converter" if ENABLE_CONVERTER else "Media Downloader"
+
+
+def _parse_minutes(name: str, default: int) -> int:
+    """Parse a "minutes" env var. 0 / off / disabled / never => disabled (0)."""
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    raw = raw.strip().lower()
+    if raw in ("", "0", "off", "false", "no", "disabled", "never"):
+        return 0
+    try:
+        value = int(raw)
+    except ValueError:
+        return default
+    return value if value > 0 else 0
+
+
+# How long a downloaded file lives (in minutes) before it is auto-deleted to
+# keep the disk from filling up. Applies only to the downloads/ folder (the
+# media downloader). Default 30 minutes; set to 0/off/disabled to keep files
+# forever.
+DOWNLOADS_CLEANUP_MINUTES = _parse_minutes("DOWNLOADS_CLEANUP_MINUTES", 30)
 
 ALLOWED_INPUT_EXTENSIONS = {
     ".mp4", ".avi", ".mkv", ".mov", ".wmv", ".flv", ".webm",
@@ -448,6 +477,54 @@ def cleanup_old_files():
                         pass
 
 
+def cleanup_old_downloads():
+    """Delete downloaded files older than DOWNLOADS_CLEANUP_MINUTES.
+
+    Applies only to the downloads/ hierarchy (the media downloader). Files that
+    are still being written keep a fresh mtime, so an in-progress download is
+    never removed; the countdown effectively starts when the download finishes.
+    Disabled when DOWNLOADS_CLEANUP_MINUTES is 0.
+    """
+    if DOWNLOADS_CLEANUP_MINUTES <= 0 or not DOWNLOADS_FOLDER.exists():
+        return
+
+    cutoff = datetime.now() - timedelta(minutes=DOWNLOADS_CLEANUP_MINUTES)
+    for item in DOWNLOADS_FOLDER.rglob("*"):
+        if not item.is_file():
+            continue
+        try:
+            mtime = datetime.fromtimestamp(item.stat().st_mtime)
+        except OSError:
+            continue
+        if mtime < cutoff:
+            try:
+                item.unlink()
+                app.logger.info(f"Cleaned up download: {item.relative_to(DOWNLOADS_FOLDER).as_posix()}")
+            except OSError:
+                pass
+
+
+def _humanize_hours(hours: int) -> str:
+    return f"{hours} hour{'s' if hours != 1 else ''}"
+
+
+def _humanize_minutes(minutes: int) -> str:
+    # Present whole-hour values in hours for readability (e.g. 60 -> "1 hour").
+    if minutes >= 60 and minutes % 60 == 0:
+        return _humanize_hours(minutes // 60)
+    return f"{minutes} minute{'s' if minutes != 1 else ''}"
+
+
+def _footer_cleanup_notes() -> list[str]:
+    """Build human-readable auto-delete notes for the page footer."""
+    notes: list[str] = []
+    if ENABLE_CONVERTER:
+        notes.append(f"Temp files auto-delete after {_humanize_hours(CLEANUP_HOURS)}")
+    if ENABLE_DOWNLOADER and DOWNLOADS_CLEANUP_MINUTES > 0:
+        notes.append(f"Downloads auto-delete after {_humanize_minutes(DOWNLOADS_CLEANUP_MINUTES)}")
+    return notes
+
+
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
@@ -470,6 +547,9 @@ _require_converter = _require_feature(
 _require_downloader = _require_feature(
     lambda: ENABLE_DOWNLOADER, "Media downloading is disabled on this server."
 )
+_require_file_manager = _require_feature(
+    lambda: ENABLE_FILE_MANAGER, "The file manager is disabled on this server."
+)
 
 
 @app.route("/")
@@ -486,7 +566,9 @@ def index():
         gpu_info=gpu,
         enable_converter=ENABLE_CONVERTER,
         enable_downloader=ENABLE_DOWNLOADER,
+        enable_file_manager=ENABLE_FILE_MANAGER,
         app_title=APP_TITLE,
+        footer_notes=_footer_cleanup_notes(),
     )
 
 
@@ -1320,6 +1402,7 @@ def youtube_abort(job_id):
 
 
 @app.route("/files")
+@_require_file_manager
 def files_page():
     """Simple web file browser for converted and downloaded files."""
     converted_files = _list_files_recursive(CONVERTED_FOLDER)
@@ -1335,6 +1418,7 @@ def files_page():
 
 
 @app.route("/files/download")
+@_require_file_manager
 def files_download_single():
     """Download one file from converted/ or downloads/."""
     root = request.args.get("root", "").strip().lower()
@@ -1352,6 +1436,7 @@ def files_download_single():
 
 
 @app.route("/files/download-selected", methods=["POST"])
+@_require_file_manager
 def files_download_selected():
     """Download selected files as a zip archive."""
     data = request.get_json() or {}
@@ -1389,6 +1474,7 @@ def files_download_selected():
 
 
 @app.route("/files/delete-selected", methods=["POST"])
+@_require_file_manager
 def files_delete_selected():
     """Delete selected files from converted/ or downloads/."""
     data = request.get_json() or {}
@@ -1441,6 +1527,8 @@ def health():
         "gpu": gpu.get("label", "None") if gpu else "None",
         "converter_enabled": ENABLE_CONVERTER,
         "downloader_enabled": ENABLE_DOWNLOADER,
+        "file_manager_enabled": ENABLE_FILE_MANAGER,
+        "downloads_cleanup_minutes": DOWNLOADS_CLEANUP_MINUTES,
     })
 
 
@@ -1450,6 +1538,15 @@ def health():
 
 scheduler = BackgroundScheduler(daemon=True)
 scheduler.add_job(cleanup_old_files, "interval", hours=1, id="cleanup")
+
+# Auto-delete downloaded files. Only meaningful when the downloader is active.
+# Run on a fraction of the TTL (capped at 5 min) so files are removed reasonably
+# close to their configured lifetime.
+if ENABLE_DOWNLOADER and DOWNLOADS_CLEANUP_MINUTES > 0:
+    _dl_interval = max(1, min(5, DOWNLOADS_CLEANUP_MINUTES))
+    scheduler.add_job(
+        cleanup_old_downloads, "interval", minutes=_dl_interval, id="cleanup_downloads"
+    )
 scheduler.start()
 
 # ---------------------------------------------------------------------------
@@ -1470,6 +1567,12 @@ if __name__ == "__main__":
     print(f"  Mode: {mode}")
     print(f"  FFmpeg available: {_ffmpeg_available()}")
     print(f"  GPU acceleration: {gpu.get('label', 'Not available') if gpu else 'Not available'}")
-    print(f"  Files auto-delete after: {CLEANUP_HOURS} hours\n")
+    print(f"  Files auto-delete after: {CLEANUP_HOURS} hours")
+    if ENABLE_DOWNLOADER:
+        if DOWNLOADS_CLEANUP_MINUTES > 0:
+            print(f"  Downloads auto-delete after: {DOWNLOADS_CLEANUP_MINUTES} minutes")
+        else:
+            print("  Downloads auto-delete: disabled")
+    print()
 
     app.run(host=host, port=port, debug=False)

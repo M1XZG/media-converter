@@ -80,11 +80,12 @@ Or run directly without the converter:
 docker build -t media-converter .
 docker run -d -p 5000:5000 \
   -e ENABLE_CONVERTER=false \
+  -e ENABLE_FILE_MANAGER=false \
   -v "$(pwd)/downloads:/app/downloads" \
   --name media-downloader media-converter
 ```
 
-When the converter is disabled, its UI **and** its HTTP routes are turned off (disabled endpoints return `403`). To run a **converter-only** instance instead, set `ENABLE_DOWNLOADER=false`. See [Configuration](#configuration) for the full list of deployment combinations.
+When the converter is disabled, its UI **and** its HTTP routes are turned off (disabled endpoints return `403`). To run a **converter-only** instance instead, set `ENABLE_DOWNLOADER=false`. For a public server, also set `ENABLE_FILE_MANAGER=false` so visitors can't browse what others have downloaded. See [Configuration](#configuration) for the full list of deployment combinations.
 
 </details>
 
@@ -216,11 +217,17 @@ Environment variables can be set in a `.env` file or exported:
 | `FLASK_HOST` | `0.0.0.0` | Host to bind to |
 | `FLASK_PORT` | `5000` | Port to listen on |
 | `MAX_CONTENT_LENGTH` | `0` (unlimited) | Max upload size in bytes (0 = no limit) |
-| `CLEANUP_HOURS` | `24` | Hours before files are auto-deleted |
+| `CLEANUP_HOURS` | `24` | Hours before uploaded/converted temp files are auto-deleted |
+| `DOWNLOADS_CLEANUP_MINUTES` | `30` | Minutes before downloaded files are auto-deleted (`0`/`off`/`disabled` = keep forever) |
 | `ENABLE_CONVERTER` | `true` | Enable the video converter / audio extractor / GIF maker |
 | `ENABLE_DOWNLOADER` | `true` | Enable the social-media downloader |
+| `ENABLE_FILE_MANAGER` | `true` | Enable the "Media Library" file browser at `/files` (list/download/delete) |
 
-Cleanup applies only to `uploads/` and `converted/`. Files in `downloads/` are preserved.
+Cleanup applies to `uploads/` and `converted/` (after `CLEANUP_HOURS`) and to
+`downloads/` (after `DOWNLOADS_CLEANUP_MINUTES`). The downloads timer effectively
+starts when a download finishes — files still being written keep a fresh
+timestamp and are never removed mid-download. Set `DOWNLOADS_CLEANUP_MINUTES=0`
+to keep downloaded files indefinitely.
 
 ### Splitting the app (converter vs. downloader)
 
@@ -239,10 +246,25 @@ When a half is disabled, both its UI and its HTTP routes are turned off — the
 disabled endpoints return `403`, so the feature can't be triggered by hand-crafted
 requests. If both flags are set to `false`, the app falls back to full functionality.
 
+### Locking down the file manager (public instances)
+
+The **Media Library** at `/files` lets anyone browse, download, and delete
+*every* file on the server. On a public instance you usually don't want visitors
+to see what others have downloaded, so set:
+
+```
+ENABLE_FILE_MANAGER=false
+```
+
+When disabled, the `/files` page **and** all `/files/*` endpoints return `403`,
+the "Media Library" link is removed from the UI, and no browser file retrieval is
+offered anywhere (downloaded files are saved to the server only). Converter output
+is still delivered through its own `/download/<id>` link.
+
 Example — spin up a standalone downloader on another server:
 
 ```yaml
-# docker-compose.yml (downloader-only instance)
+# docker-compose.yml (public downloader-only instance)
 services:
   media-downloader:
     build: .
@@ -251,6 +273,7 @@ services:
     environment:
       - ENABLE_CONVERTER=false
       - ENABLE_DOWNLOADER=true
+      - ENABLE_FILE_MANAGER=false
     volumes:
       - ./downloads:/app/downloads
     restart: unless-stopped
