@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Media Converter</title>
+    <title>{{ app_title }}</title>
     <style>
         /* ----------------------------------------------------------------
            CSS Custom Properties — Dark & Light themes
@@ -1093,7 +1093,7 @@
         <header>
             <div class="logo">
                 <div class="logo-icon">🎬</div>
-                <h1>Media Converter</h1>
+                <h1>{{ app_title }}</h1>
             </div>
             <div class="header-actions">
                 <a class="header-link" href="/files">Media Library</a>
@@ -1107,6 +1107,7 @@
         <div class="card">
 
         <!-- Info Banner -->
+        {% if enable_converter %}
         <div class="info-banner">
             <h2>Convert Videos, Extract Audio &amp; Make GIFs — Right in Your Browser</h2>
             <p>
@@ -1168,15 +1169,40 @@
                 {% endif %}
             </div>
         </div>
+        {% endif %}
 
-        {% if not ffmpeg_ok %}
+        {% if enable_downloader and not enable_converter %}
+        <div class="info-banner">
+            <h2>Download Media from Supported Platforms</h2>
+            <p>
+                Paste a link from a supported platform and save the video or audio straight to the server.
+                Downloading happens server-side using yt-dlp — your browser simply kicks off the job and retrieves the file.
+            </p>
+            <div class="info-grid">
+                <div class="info-item">
+                    <span class="icon">🎬</span>
+                    <span><strong>Video &amp; audio</strong> — download full video or extract audio only</span>
+                </div>
+                <div class="info-item">
+                    <span class="icon">🔒</span>
+                    <span><strong>Self-hosted</strong> — runs entirely on your own server</span>
+                </div>
+                <div class="info-item">
+                    <span class="icon">📁</span>
+                    <span><strong>Organised</strong> — files saved under downloads/&lt;service&gt;</span>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if enable_converter and not ffmpeg_ok %}
         <div class="ffmpeg-warning">
             <span>⚠️</span>
             <span><strong>FFmpeg not found.</strong> Please install FFmpeg and make sure it's on your system PATH. Conversions will fail without it.</span>
         </div>
         {% endif %}
 
-        {% if not ytdlp_ok %}
+        {% if enable_downloader and not ytdlp_ok %}
         <div class="ffmpeg-warning" style="margin-top: -1rem;">
             <span>⚠️</span>
             <span><strong>yt-dlp not found.</strong> Social media downloads will fail without yt-dlp on your system PATH.</span>
@@ -1184,6 +1210,7 @@
         {% endif %}
 
             <!-- Drop Zone -->
+            {% if enable_converter %}
             <div class="drop-zone" id="drop-zone">
                 <div class="drop-zone-icon">📤</div>
                 <div class="drop-zone-text">Drop your video file here</div>
@@ -1318,9 +1345,11 @@
 
             <!-- Result -->
             <div class="result-section" id="result-section"></div>
+            {% endif %}
         </div>
 
         <!-- Downloader Card -->
+        {% if enable_downloader %}
         <div class="card">
 
             <!-- Social Media Downloader -->
@@ -1392,6 +1421,7 @@
                 <div id="youtube-result" class="youtube-result"></div>
             </div>
         </div>
+        {% endif %}
 
         <footer>
             Media Converter &middot; Self-hosted &middot; Temp files auto-delete after 24 hours
@@ -1450,6 +1480,7 @@
         /* ============================================================
            Drag & Drop
         ============================================================ */
+        {% if enable_converter %}
         const dropZone = document.getElementById('drop-zone');
         const fileInput = document.getElementById('file-input');
 
@@ -1477,6 +1508,7 @@
                 uploadFile(fileInput.files[0]);
             }
         });
+        {% endif %}
 
         /* ============================================================
            Upload
@@ -2112,6 +2144,7 @@
             document.getElementById('upload-progress').classList.remove('visible');
             document.getElementById('resolution-section').classList.remove('visible');
             document.getElementById('resolution-grid').innerHTML = '';
+            {% if enable_downloader %}
             document.getElementById('youtube-progress').classList.remove('visible');
             document.getElementById('youtube-result').innerHTML = '';
             document.getElementById('youtube-download-btn').disabled = false;
@@ -2124,6 +2157,7 @@
             document.getElementById('youtube-quality').value = 'best';
             document.getElementById('youtube-audio-format').value = 'mp3';
             setYoutubeMode('video');
+            {% endif %}
             fileInput.value = '';
 
             // Reset mode tabs

@@ -11,6 +11,15 @@ services:
       - CLEANUP_HOURS=24
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=compute,video,utility
+      # Feature flags — control which halves of the app are active.
+      # Both default to true, so leaving these unset (or true) keeps the full
+      # converter + downloader experience. To run a public, downloader-only
+      # instance that cannot convert large video files, set:
+      #   ENABLE_CONVERTER=false
+      # To run a converter-only instance, set ENABLE_DOWNLOADER=false.
+      # (If both are set to false the app falls back to full functionality.)
+      - ENABLE_CONVERTER=true
+      - ENABLE_DOWNLOADER=true
     volumes:
       # Persist uploads/converted files across container restarts (optional)
       - ./uploads:/app/uploads

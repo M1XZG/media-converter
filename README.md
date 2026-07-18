@@ -64,6 +64,31 @@ docker run -d -p 5000:5000 --name media-converter media-converter
 </details>
 
 <details>
+<summary><strong>📥 Downloader-only instance</strong></summary>
+
+You can split the app so a public instance only exposes the **downloader** and can't be used to convert large video files on your server. Set the `ENABLE_CONVERTER` feature flag to `false` (both halves are enabled by default):
+
+```bash
+git clone https://github.com/M1XZG/media-converter.git
+cd media-converter
+ENABLE_CONVERTER=false docker compose up -d
+```
+
+Or run directly without the converter:
+
+```bash
+docker build -t media-converter .
+docker run -d -p 5000:5000 \
+  -e ENABLE_CONVERTER=false \
+  -v "$(pwd)/downloads:/app/downloads" \
+  --name media-downloader media-converter
+```
+
+When the converter is disabled, its UI **and** its HTTP routes are turned off (disabled endpoints return `403`). To run a **converter-only** instance instead, set `ENABLE_DOWNLOADER=false`. See [Configuration](#configuration) for the full list of deployment combinations.
+
+</details>
+
+<details>
 <summary><strong>🪟 Windows</strong></summary>
 
 **Prerequisites:** Python 3.10+ and [FFmpeg](#installing-ffmpeg) on your PATH.
@@ -192,8 +217,44 @@ Environment variables can be set in a `.env` file or exported:
 | `FLASK_PORT` | `5000` | Port to listen on |
 | `MAX_CONTENT_LENGTH` | `0` (unlimited) | Max upload size in bytes (0 = no limit) |
 | `CLEANUP_HOURS` | `24` | Hours before files are auto-deleted |
+| `ENABLE_CONVERTER` | `true` | Enable the video converter / audio extractor / GIF maker |
+| `ENABLE_DOWNLOADER` | `true` | Enable the social-media downloader |
 
 Cleanup applies only to `uploads/` and `converted/`. Files in `downloads/` are preserved.
+
+### Splitting the app (converter vs. downloader)
+
+Out of the box both halves are enabled and the app works exactly as before.
+You can split the functionality using the two feature flags above — useful for
+hosting a public, **downloader-only** instance that can't be used to convert
+large video files on your server:
+
+| Deployment | Settings |
+|---|---|
+| Full app (default) | `ENABLE_CONVERTER=true`, `ENABLE_DOWNLOADER=true` |
+| Downloader only | `ENABLE_CONVERTER=false`, `ENABLE_DOWNLOADER=true` |
+| Converter only | `ENABLE_CONVERTER=true`, `ENABLE_DOWNLOADER=false` |
+
+When a half is disabled, both its UI and its HTTP routes are turned off — the
+disabled endpoints return `403`, so the feature can't be triggered by hand-crafted
+requests. If both flags are set to `false`, the app falls back to full functionality.
+
+Example — spin up a standalone downloader on another server:
+
+```yaml
+# docker-compose.yml (downloader-only instance)
+services:
+  media-downloader:
+    build: .
+    ports:
+      - "5000:5000"
+    environment:
+      - ENABLE_CONVERTER=false
+      - ENABLE_DOWNLOADER=true
+    volumes:
+      - ./downloads:/app/downloads
+    restart: unless-stopped
+```
 
 ---
 

@@ -194,12 +194,13 @@
         <div class="header">
             <h1>Media Library</h1>
             <div class="actions">
-                <a class="btn" href="/">Back to Converter</a>
+                <a class="btn" href="/">Back to {{ app_title }}</a>
                 <button class="btn primary" id="download-selected-btn" onclick="downloadSelected()">Download Selected</button>
                 <button class="btn danger" id="delete-selected-btn" onclick="deleteSelected()">Delete Selected</button>
             </div>
         </div>
 
+        {% if enable_converter %}
         <div class="card">
             <div class="card-header">
                 <h2>Converted Files</h2>
@@ -232,7 +233,9 @@
             <div class="empty">No converted files available.</div>
             {% endif %}
         </div>
+        {% endif %}
 
+        {% if enable_downloader %}
         <div class="card">
             <div class="card-header">
                 <h2>Downloads Folder</h2>
@@ -265,6 +268,7 @@
             <div class="empty">No files in downloads yet.</div>
             {% endif %}
         </div>
+        {% endif %}
 
         <div id="status" class="status"></div>
     </div>

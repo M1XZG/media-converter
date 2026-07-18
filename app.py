@@ -13,6 +13,7 @@ import time
 import io
 import zipfile
 from datetime import datetime, timedelta
+from functools import wraps
 from pathlib import Path
 
 from flask import (
@@ -41,6 +42,32 @@ TWITTER_DOWNLOADS_FOLDER = DOWNLOADS_FOLDER / "twitter"
 PORNHUB_DOWNLOADS_FOLDER = DOWNLOADS_FOLDER / "pornhub"
 SPOTIFY_DOWNLOADS_FOLDER = DOWNLOADS_FOLDER / "spotify"
 CLEANUP_HOURS = int(os.environ.get("CLEANUP_HOURS", 24))
+
+
+def _env_bool(name: str, default: bool = True) -> bool:
+    """Parse a boolean-ish environment variable."""
+    val = os.environ.get(name)
+    if val is None:
+        return default
+    return val.strip().lower() in ("1", "true", "yes", "on", "enabled")
+
+
+# Feature flags — control which halves of the app are active.
+#
+# Out of the box both are enabled, so the app behaves exactly as before
+# (video conversion + downloader). Set one to false to "split" the app, e.g.
+# a public downloader-only deployment sets ENABLE_CONVERTER=false so nobody can
+# run heavyweight video conversions on the server.
+ENABLE_CONVERTER = _env_bool("ENABLE_CONVERTER", True)
+ENABLE_DOWNLOADER = _env_bool("ENABLE_DOWNLOADER", True)
+
+# Guard against a misconfiguration that would leave the app doing nothing:
+# if both are disabled, fall back to full functionality.
+if not ENABLE_CONVERTER and not ENABLE_DOWNLOADER:
+    ENABLE_CONVERTER = True
+    ENABLE_DOWNLOADER = True
+
+APP_TITLE = "Media Converter" if ENABLE_CONVERTER else "Media Downloader"
 
 ALLOWED_INPUT_EXTENSIONS = {
     ".mp4", ".avi", ".mkv", ".mov", ".wmv", ".flv", ".webm",
@@ -425,6 +452,26 @@ def cleanup_old_files():
 # Routes
 # ---------------------------------------------------------------------------
 
+def _require_feature(is_enabled, message: str):
+    """Return a decorator that blocks a route when a feature flag is off."""
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            if not is_enabled():
+                return jsonify({"error": message}), 403
+            return func(*args, **kwargs)
+        return wrapper
+    return decorator
+
+
+_require_converter = _require_feature(
+    lambda: ENABLE_CONVERTER, "Video conversion is disabled on this server."
+)
+_require_downloader = _require_feature(
+    lambda: ENABLE_DOWNLOADER, "Media downloading is disabled on this server."
+)
+
+
 @app.route("/")
 def index():
     gpu = _detect_gpu_encoder()
@@ -437,10 +484,14 @@ def index():
         youtube_quality_options=YOUTUBE_QUALITY_OPTIONS,
         supported_download_services=[info["label"] for info in SUPPORTED_DOWNLOAD_SERVICES.values() if not info.get("hidden")],
         gpu_info=gpu,
+        enable_converter=ENABLE_CONVERTER,
+        enable_downloader=ENABLE_DOWNLOADER,
+        app_title=APP_TITLE,
     )
 
 
 @app.route("/upload", methods=["POST"])
+@_require_converter
 def upload():
     """Handle file upload and return file metadata."""
     if "file" not in request.files:
@@ -505,6 +556,7 @@ def upload():
 
 
 @app.route("/convert", methods=["POST"])
+@_require_converter
 def convert():
     """Start conversion of an uploaded file (non-blocking)."""
     data = request.get_json()
@@ -860,6 +912,7 @@ def convert():
 
 
 @app.route("/progress/<file_id>")
+@_require_converter
 def progress(file_id):
     """Poll conversion progress for a given file."""
     job = _active_jobs.get(file_id)
@@ -887,6 +940,7 @@ def progress(file_id):
 
 
 @app.route("/abort/<file_id>", methods=["POST"])
+@_require_converter
 def abort_conversion(file_id):
     """Abort an in-progress conversion and clean up."""
     job = _active_jobs.get(file_id)
@@ -919,6 +973,7 @@ def abort_conversion(file_id):
 
 
 @app.route("/download/<download_id>")
+@_require_converter
 def download(download_id):
     """Download a converted file."""
     # Sanitize the download_id
@@ -937,6 +992,7 @@ def download(download_id):
 
 @app.route("/media/download", methods=["POST"])
 @app.route("/youtube/download", methods=["POST"])
+@_require_downloader
 def youtube_download():
     """Start a background media download job for supported services."""
     data = request.get_json() or {}
@@ -1201,6 +1257,7 @@ def youtube_download():
 
 @app.route("/media/progress/<job_id>")
 @app.route("/youtube/progress/<job_id>")
+@_require_downloader
 def youtube_progress(job_id):
     """Poll media download progress for a given job."""
     job = _youtube_jobs.get(job_id)
@@ -1233,6 +1290,7 @@ def youtube_progress(job_id):
 
 @app.route("/media/abort/<job_id>", methods=["POST"])
 @app.route("/youtube/abort/<job_id>", methods=["POST"])
+@_require_downloader
 def youtube_abort(job_id):
     """Abort an in-progress media download and clean up partial files."""
     job = _youtube_jobs.get(job_id)
@@ -1270,6 +1328,9 @@ def files_page():
         "files.html",
         converted_files=converted_files,
         downloaded_files=downloaded_files,
+        enable_converter=ENABLE_CONVERTER,
+        enable_downloader=ENABLE_DOWNLOADER,
+        app_title=APP_TITLE,
     )
 
 
@@ -1378,6 +1439,8 @@ def health():
         "yt_dlp": _ytdlp_available(),
         "downloads": str(DOWNLOADS_FOLDER),
         "gpu": gpu.get("label", "None") if gpu else "None",
+        "converter_enabled": ENABLE_CONVERTER,
+        "downloader_enabled": ENABLE_DOWNLOADER,
     })
 
 
@@ -1398,7 +1461,13 @@ if __name__ == "__main__":
     port = int(os.environ.get("FLASK_PORT", 5000))
 
     gpu = _detect_gpu_encoder()
-    print(f"\n  Media Converter running at http://localhost:{port}")
+    print(f"\n  {APP_TITLE} running at http://localhost:{port}")
+    mode = (
+        "converter + downloader"
+        if ENABLE_CONVERTER and ENABLE_DOWNLOADER
+        else ("converter only" if ENABLE_CONVERTER else "downloader only")
+    )
+    print(f"  Mode: {mode}")
     print(f"  FFmpeg available: {_ffmpeg_available()}")
     print(f"  GPU acceleration: {gpu.get('label', 'Not available') if gpu else 'Not available'}")
     print(f"  Files auto-delete after: {CLEANUP_HOURS} hours\n")
