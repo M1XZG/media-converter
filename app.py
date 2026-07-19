@@ -40,7 +40,6 @@ INSTAGRAM_DOWNLOADS_FOLDER = DOWNLOADS_FOLDER / "instagram"
 TIKTOK_DOWNLOADS_FOLDER = DOWNLOADS_FOLDER / "tiktok"
 TWITTER_DOWNLOADS_FOLDER = DOWNLOADS_FOLDER / "twitter"
 PORNHUB_DOWNLOADS_FOLDER = DOWNLOADS_FOLDER / "pornhub"
-HANIME_DOWNLOADS_FOLDER = DOWNLOADS_FOLDER / "hanime"
 SPOTIFY_DOWNLOADS_FOLDER = DOWNLOADS_FOLDER / "spotify"
 CLEANUP_HOURS = int(os.environ.get("CLEANUP_HOURS", 24))
 
@@ -136,7 +135,6 @@ INSTAGRAM_DOWNLOADS_FOLDER.mkdir(parents=True, exist_ok=True)
 TIKTOK_DOWNLOADS_FOLDER.mkdir(parents=True, exist_ok=True)
 TWITTER_DOWNLOADS_FOLDER.mkdir(parents=True, exist_ok=True)
 PORNHUB_DOWNLOADS_FOLDER.mkdir(parents=True, exist_ok=True)
-HANIME_DOWNLOADS_FOLDER.mkdir(parents=True, exist_ok=True)
 SPOTIFY_DOWNLOADS_FOLDER.mkdir(parents=True, exist_ok=True)
 
 # Active conversion jobs: file_id -> job dict
@@ -198,12 +196,6 @@ SUPPORTED_DOWNLOAD_SERVICES = {
         "label": "PornHub",
         "folder": PORNHUB_DOWNLOADS_FOLDER,
         "domains": ("pornhub.com",),
-        "hidden": True,
-    },
-    "hanime": {
-        "label": "Hanime",
-        "folder": HANIME_DOWNLOADS_FOLDER,
-        "domains": ("hanime.tv",),
         "hidden": True,
     },
     "spotify": {
