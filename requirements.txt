@@ -3,4 +3,4 @@ werkzeug>=3.1.8
 apscheduler>=3.11.3
 yt-dlp>=2026.7.4
 spotdl>=4.5.0
-curl_cffi>=0.15.0
+curl_cffi>=0.16.1
