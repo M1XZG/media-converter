@@ -222,12 +222,20 @@ Environment variables can be set in a `.env` file or exported:
 | `ENABLE_CONVERTER` | `true` | Enable the video converter / audio extractor / GIF maker |
 | `ENABLE_DOWNLOADER` | `true` | Enable the social-media downloader |
 | `ENABLE_FILE_MANAGER` | `true` | Enable the "Media Library" file browser at `/files` (list/download/delete) |
+| `LOG_LEVEL` | `INFO` | Application log level. Use `DEBUG` to record every yt-dlp/spotdl output line |
+| `DOWNLOAD_LOG_TAIL_LINES` | `100` | Number of recent yt-dlp/spotdl output lines included in failure logs (10-1000) |
 
 Cleanup applies to `uploads/` and `converted/` (after `CLEANUP_HOURS`) and to
 `downloads/` (after `DOWNLOADS_CLEANUP_MINUTES`). The downloads timer effectively
 starts when a download finishes — files still being written keep a fresh
 timestamp and are never removed mid-download. Set `DOWNLOADS_CLEANUP_MINUTES=0`
 to keep downloaded files indefinitely.
+
+Downloader logs include the job ID, submitted URL, service, selected options,
+tool exit code, completion details, and a bounded tail of yt-dlp or spotdl
+output when a job fails. Query parameters with credential-like names are
+redacted. Set `LOG_LEVEL=DEBUG` temporarily when line-by-line tool output is
+needed for troubleshooting.
 
 ### Splitting the app (converter vs. downloader)
 
