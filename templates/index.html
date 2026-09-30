@@ -3,6 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#6366f1">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="{{ app_title }}">
+    <link rel="manifest" href="/manifest.webmanifest">
+    <link rel="icon" href="/static/icon-192.png">
+    <link rel="apple-touch-icon" href="/static/icon-192.png">
     <title>{{ app_title }}</title>
     <style>
         /* ----------------------------------------------------------------
@@ -142,6 +150,15 @@
         .header-link:hover {
             border-color: var(--accent);
             color: var(--text-primary);
+        }
+
+        .install-button {
+            display: none;
+            cursor: pointer;
+        }
+
+        .install-button.visible {
+            display: inline-block;
         }
 
         .logo {
@@ -921,6 +938,35 @@
             box-shadow: 0 0 0 3px var(--accent-glow);
         }
 
+        .clipboard-btn {
+            border: 2px solid var(--border-color);
+            border-radius: 10px;
+            background: var(--bg-input);
+            color: var(--text-secondary);
+            padding: 0.72rem 0.85rem;
+            font-weight: 700;
+            font-size: 0.82rem;
+            cursor: pointer;
+            transition: all var(--transition-speed);
+            white-space: nowrap;
+        }
+
+        .clipboard-btn:hover {
+            border-color: var(--accent);
+            color: var(--text-primary);
+        }
+
+        .clipboard-status {
+            min-height: 1.3rem;
+            margin-top: 0.35rem;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        .clipboard-status.error {
+            color: var(--error);
+        }
+
         .youtube-download-btn {
             border: none;
             border-radius: 10px;
@@ -1096,6 +1142,9 @@
                 <h1>{{ app_title }}</h1>
             </div>
             <div class="header-actions">
+                <button type="button" class="header-link install-button" id="install-app-btn" onclick="installWebApp()">
+                    Install App
+                </button>
                 {% if enable_file_manager %}
                 <a class="header-link" href="/files">Media Library</a>
                 {% endif %}
@@ -1341,7 +1390,9 @@
                         autocomplete="off"
                         oninput="handleYoutubeUrlInput()"
                     >
+                    <button type="button" class="clipboard-btn" onclick="pasteMediaUrl()">Paste</button>
                 </div>
+                <div class="clipboard-status" id="clipboard-status" role="status" aria-live="polite"></div>
 
                 <div class="format-tags" style="margin-bottom: 0.9rem;">
                     {% for service_label in supported_download_services %}
@@ -1419,6 +1470,7 @@
         let youtubeJobId = null;
         let youtubePollInterval = null;
         let youtubeMode = 'video';
+        let deferredInstallPrompt = null;
 
         /* ============================================================
            Resolution Presets
@@ -1451,6 +1503,54 @@
 
         // Apply saved theme on load
         applyTheme(getStoredTheme());
+
+        /* ============================================================
+           Installable Web App
+        ============================================================ */
+        const installButton = document.getElementById('install-app-btn');
+        const isStandalone = window.matchMedia('(display-mode: standalone)').matches
+            || window.navigator.standalone === true;
+        const isAppleMobile = /iphone|ipad|ipod/i.test(navigator.userAgent);
+
+        if (!isStandalone && isAppleMobile) {
+            installButton.classList.add('visible');
+        }
+
+        window.addEventListener('beforeinstallprompt', (event) => {
+            event.preventDefault();
+            deferredInstallPrompt = event;
+            installButton.classList.add('visible');
+        });
+
+        window.addEventListener('appinstalled', () => {
+            deferredInstallPrompt = null;
+            installButton.classList.remove('visible');
+        });
+
+        async function installWebApp() {
+            if (deferredInstallPrompt) {
+                deferredInstallPrompt.prompt();
+                await deferredInstallPrompt.userChoice;
+                deferredInstallPrompt = null;
+                installButton.classList.remove('visible');
+                return;
+            }
+
+            if (isAppleMobile) {
+                alert('In Safari, tap Share, then choose Add to Home Screen.');
+                return;
+            }
+
+            alert('Use your browser menu and choose Install app or Add to Home screen.');
+        }
+
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/service-worker.js').catch((error) => {
+                    console.warn('Service worker registration failed:', error);
+                });
+            });
+        }
 
         /* ============================================================
            Drag & Drop
@@ -1994,6 +2094,35 @@
                 videoTab.disabled = false;
                 videoTab.style.opacity = '';
                 videoTab.style.cursor = '';
+            }
+        }
+
+        async function pasteMediaUrl() {
+            const input = document.getElementById('youtube-url');
+            const status = document.getElementById('clipboard-status');
+            status.classList.remove('error');
+
+            if (!navigator.clipboard || !window.isSecureContext) {
+                status.textContent = 'Clipboard access needs HTTPS. Long-press the field and choose Paste.';
+                status.classList.add('error');
+                input.focus();
+                return;
+            }
+
+            try {
+                const text = (await navigator.clipboard.readText()).trim();
+                if (!text) {
+                    status.textContent = 'The clipboard does not contain any text.';
+                    return;
+                }
+                input.value = text;
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+                input.focus();
+                status.textContent = 'Pasted from the clipboard.';
+            } catch (error) {
+                status.textContent = 'Clipboard access was blocked. Long-press the field and choose Paste.';
+                status.classList.add('error');
+                input.focus();
             }
         }
 
