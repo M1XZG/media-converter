@@ -12,9 +12,12 @@ import threading
 import time
 import io
 import zipfile
+import logging
+from collections import deque
 from datetime import datetime, timedelta
 from functools import wraps
 from pathlib import Path
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from flask import (
     Flask,
@@ -98,6 +101,18 @@ def _parse_minutes(name: str, default: int) -> int:
 # forever.
 DOWNLOADS_CLEANUP_MINUTES = _parse_minutes("DOWNLOADS_CLEANUP_MINUTES", 30)
 
+LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").strip().upper()
+if LOG_LEVEL not in {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}:
+    LOG_LEVEL = "INFO"
+
+try:
+    DOWNLOAD_LOG_TAIL_LINES = max(
+        10,
+        min(int(os.environ.get("DOWNLOAD_LOG_TAIL_LINES", 100)), 1000),
+    )
+except ValueError:
+    DOWNLOAD_LOG_TAIL_LINES = 100
+
 ALLOWED_INPUT_EXTENSIONS = {
     ".mp4", ".avi", ".mkv", ".mov", ".wmv", ".flv", ".webm",
     ".m4v", ".mpeg", ".mpg", ".3gp", ".ogv", ".ts", ".vob",
@@ -127,6 +142,12 @@ AUDIO_OUTPUT_FORMATS = {
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = int(os.environ.get("MAX_CONTENT_LENGTH", 0)) or None  # None = unlimited
+
+logging.basicConfig(
+    level=getattr(logging, LOG_LEVEL),
+    format="%(asctime)s %(levelname)s %(name)s %(message)s",
+)
+logger = logging.getLogger("media_converter")
 
 UPLOAD_FOLDER.mkdir(exist_ok=True)
 CONVERTED_FOLDER.mkdir(exist_ok=True)
@@ -212,6 +233,28 @@ SUPPORTED_DOWNLOAD_SERVICES = {
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+_SENSITIVE_QUERY_PARAM_RE = re.compile(
+    r"(?:^|_)(?:access_?token|api_?key|auth|authorization|code|credential|"
+    r"key|password|secret|signature|sig|token)(?:$|_)",
+    re.IGNORECASE,
+)
+
+
+def _redact_url_for_log(url: str) -> str:
+    """Keep a useful submitted URL while hiding credential-like parameters."""
+    try:
+        parsed = urlsplit(url)
+        if not parsed.query:
+            return url
+        query = [
+            (key, "[REDACTED]" if _SENSITIVE_QUERY_PARAM_RE.search(key) else value)
+            for key, value in parse_qsl(parsed.query, keep_blank_values=True)
+        ]
+        return urlunsplit(parsed._replace(query=urlencode(query)))
+    except ValueError:
+        return url
+
 
 def _ffmpeg_available() -> bool:
     """Check if ffmpeg is accessible on the system PATH."""
@@ -1140,6 +1183,18 @@ def youtube_download():
     _youtube_jobs[job_id] = job
     _prune_jobs(_youtube_jobs)
 
+    logged_url = _redact_url_for_log(url)
+    logger.info(
+        "download_started job_id=%s service=%s mode=%s quality=%s "
+        "audio_format=%s url=%s",
+        job_id,
+        service,
+        mode,
+        quality,
+        audio_format,
+        logged_url,
+    )
+
     if is_spotify:
         # spotdl reads Spotify metadata and downloads the matching audio.
         # "{output-ext}" is a spotdl template variable expanded at runtime.
@@ -1204,7 +1259,15 @@ def youtube_download():
 
     def _run_download():
         """Execute the download tool (yt-dlp or spotdl) and parse progress."""
+        tool = "spotdl" if is_spotify else "yt-dlp"
+        output_tail: deque[str] = deque(maxlen=DOWNLOAD_LOG_TAIL_LINES)
         try:
+            logger.info(
+                "download_process_starting job_id=%s tool=%s output_folder=%s",
+                job_id,
+                tool,
+                output_folder,
+            )
             proc = subprocess.Popen(
                 cmd,
                 stdout=subprocess.PIPE,
@@ -1220,6 +1283,14 @@ def youtube_download():
                     line = raw_line.strip()
                     if not line:
                         continue
+                    safe_line = line.replace(url, logged_url)
+                    output_tail.append(safe_line)
+                    logger.debug(
+                        "download_tool_output job_id=%s tool=%s output=%s",
+                        job_id,
+                        tool,
+                        safe_line,
+                    )
 
                     if is_spotify:
                         # spotdl does not emit a byte-level percentage, so we
@@ -1232,7 +1303,13 @@ def youtube_download():
                         elif "no results found" in low:
                             last_error_line = "No matching audio was found for this Spotify track."
                         elif "error" in low:
-                            last_error_line = line
+                            last_error_line = safe_line
+                            logger.warning(
+                                "download_tool_warning job_id=%s tool=%s output=%s",
+                                job_id,
+                                tool,
+                                safe_line,
+                            )
                         continue
 
                     progress_match = progress_re.search(line)
@@ -1261,16 +1338,46 @@ def youtube_download():
                         job["eta"] = eta_match.group(1)
 
                     if "ERROR:" in line:
-                        last_error_line = line
+                        last_error_line = safe_line
+                        logger.error(
+                            "download_tool_error job_id=%s tool=%s output=%s",
+                            job_id,
+                            tool,
+                            safe_line,
+                        )
+                    elif "WARNING:" in line:
+                        logger.warning(
+                            "download_tool_warning job_id=%s tool=%s output=%s",
+                            job_id,
+                            tool,
+                            safe_line,
+                        )
 
             proc.wait(timeout=7200)
 
             if job["status"] == "aborted":
+                logger.info(
+                    "download_aborted job_id=%s service=%s url=%s",
+                    job_id,
+                    service,
+                    logged_url,
+                )
                 return
 
             if proc.returncode != 0:
                 job["status"] = "error"
                 job["error"] = last_error_line or f"{job['service_label']} download failed."
+                logger.error(
+                    "download_failed job_id=%s service=%s tool=%s exit_code=%s "
+                    "url=%s error=%s output_tail=%s",
+                    job_id,
+                    service,
+                    tool,
+                    proc.returncode,
+                    logged_url,
+                    job["error"],
+                    "\n".join(output_tail) or "(no tool output)",
+                )
                 return
 
             artifacts = sorted(
@@ -1281,6 +1388,17 @@ def youtube_download():
             if not artifacts:
                 job["status"] = "error"
                 job["error"] = last_error_line or "Download completed but output file was not found."
+                logger.error(
+                    "download_failed job_id=%s service=%s tool=%s exit_code=%s "
+                    "url=%s error=%s output_tail=%s",
+                    job_id,
+                    service,
+                    tool,
+                    proc.returncode,
+                    logged_url,
+                    job["error"],
+                    "\n".join(output_tail) or "(no tool output)",
+                )
                 return
 
             expected_ext = f".{download_ext}"
@@ -1315,21 +1433,53 @@ def youtube_download():
             job["output_size"] = _human_size(output_path.stat().st_size)
             job["downloaded_size"] = job["output_size"]
             job["total_size"] = job["output_size"]
+            logger.info(
+                "download_completed job_id=%s service=%s tool=%s url=%s "
+                "output_name=%s output_size=%s",
+                job_id,
+                service,
+                tool,
+                logged_url,
+                job["output_name"],
+                job["output_size"],
+            )
 
         except subprocess.TimeoutExpired:
             job["status"] = "error"
             job["error"] = "Download timed out (exceeded 2 hours)."
+            logger.error(
+                "download_timed_out job_id=%s service=%s tool=%s url=%s "
+                "output_tail=%s",
+                job_id,
+                service,
+                tool,
+                logged_url,
+                "\n".join(output_tail) or "(no tool output)",
+            )
             try:
                 proc.kill()
             except Exception:
                 pass
         except FileNotFoundError:
             job["status"] = "error"
-            tool = "spotdl" if is_spotify else "yt-dlp"
             job["error"] = f"{tool} is not installed or not found on PATH."
+            logger.exception(
+                "download_tool_missing job_id=%s service=%s tool=%s url=%s",
+                job_id,
+                service,
+                tool,
+                logged_url,
+            )
         except Exception as e:
             job["status"] = "error"
             job["error"] = f"Unexpected error: {str(e)}"
+            logger.exception(
+                "download_unexpected_error job_id=%s service=%s tool=%s url=%s",
+                job_id,
+                service,
+                tool,
+                logged_url,
+            )
 
     thread = threading.Thread(target=_run_download, daemon=True)
     thread.start()
@@ -1412,6 +1562,11 @@ def youtube_abort(job_id):
         return jsonify({"error": "Media download is not in progress."}), 400
 
     job["status"] = "aborted"
+    logger.info(
+        "download_abort_requested job_id=%s service=%s",
+        job_id,
+        job["service"],
+    )
     proc = job.get("process")
     if proc:
         try:
