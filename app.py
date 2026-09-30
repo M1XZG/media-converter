@@ -24,6 +24,7 @@ from flask import (
     render_template,
     request,
     send_file,
+    send_from_directory,
     jsonify,
     abort,
 )
@@ -613,6 +614,53 @@ def index():
         app_title=APP_TITLE,
         footer_notes=_footer_cleanup_notes(),
     )
+
+
+@app.route("/manifest.webmanifest")
+def web_app_manifest():
+    """Return install metadata for the current full or downloader-only app."""
+    response = jsonify(
+        {
+            "name": APP_TITLE,
+            "short_name": APP_TITLE,
+            "description": "Self-hosted media conversion and downloading.",
+            "start_url": "/",
+            "scope": "/",
+            "display": "standalone",
+            "background_color": "#0f1117",
+            "theme_color": "#6366f1",
+            "icons": [
+                {
+                    "src": "/static/icon-192.png",
+                    "sizes": "192x192",
+                    "type": "image/png",
+                    "purpose": "any maskable",
+                },
+                {
+                    "src": "/static/icon-512.png",
+                    "sizes": "512x512",
+                    "type": "image/png",
+                    "purpose": "any maskable",
+                },
+            ],
+        }
+    )
+    response.mimetype = "application/manifest+json"
+    return response
+
+
+@app.route("/service-worker.js")
+def service_worker():
+    """Serve the worker at the origin root so it can control the whole app."""
+    response = send_from_directory(
+        app.static_folder,
+        "service-worker.js",
+        mimetype="application/javascript",
+        max_age=0,
+    )
+    response.headers["Service-Worker-Allowed"] = "/"
+    response.headers["Cache-Control"] = "no-cache"
+    return response
 
 
 @app.route("/upload", methods=["POST"])

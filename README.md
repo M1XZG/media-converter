@@ -32,6 +32,8 @@ A self-hosted web application for converting video files between formats and ext
 - **Automatic Cleanup** — Temporary uploads and converted files are automatically deleted after 24 hours
 - **Persistent Downloads** — Downloaded media is stored under `downloads/<service>/` and is never auto-deleted
 - **Dark/Light Mode** — Modern UI with dark mode as default and easy toggle
+- **Installable Web App** — Install it from supported desktop and mobile browsers for app-like launching
+- **Clipboard Paste** — Fill the downloader URL from the latest clipboard text with one tap
 - **Docker Ready** — Run with GPU support via Docker Compose in one command
 - **Self-Contained** — Runs in a Python virtual environment with minimal dependencies
 
@@ -156,6 +158,10 @@ reliably. Direct installations must provide Deno 2.3.0 or newer on `PATH`.
 spotdl is installed automatically via pip from requirements and is used for Spotify downloads. Because Spotify streams are DRM-protected, spotdl reads the track metadata and fetches the matching audio from YouTube, so Spotify links are always saved as audio.
 
 Public posts generally work best. Some Instagram or X/Twitter links may require authentication or cookies depending on upstream site restrictions.
+
+The Paste button uses the browser Clipboard API. Clipboard reads require HTTPS
+or localhost and must be started by the user, so the app does not read the
+clipboard silently in the background.
 
 <details>
 <summary><strong>Windows</strong></summary>

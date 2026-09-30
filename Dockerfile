@@ -48,6 +48,7 @@ RUN pip3 install --no-cache-dir --break-system-packages -r requirements.txt
 # Copy application code
 COPY app.py cleanup.py ./
 COPY templates/ templates/
+COPY static/ static/
 
 # Create directories for uploads, converted output, and persistent downloads
 RUN mkdir -p uploads converted downloads/youtube
