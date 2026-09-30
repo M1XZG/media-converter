@@ -1217,6 +1217,8 @@ def youtube_download():
             "--newline",
             "--progress",
             "--restrict-filenames",
+            "--js-runtimes",
+            "deno",
             "-o",
             output_template,
         ]

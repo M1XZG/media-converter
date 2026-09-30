@@ -28,7 +28,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         python3-venv \
         ffmpeg \
         curl \
+        unzip \
     && rm -rf /var/lib/apt/lists/*
+
+# yt-dlp requires an external JavaScript runtime for reliable YouTube
+# signature and challenge solving. Deno is its recommended/default runtime.
+ARG DENO_VERSION=v2.9.7
+ENV DENO_INSTALL=/usr/local
+RUN curl -fsSL https://deno.land/install.sh | sh -s "${DENO_VERSION}" \
+    && deno --version
 
 # Create app directory
 WORKDIR /app
