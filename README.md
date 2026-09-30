@@ -148,7 +148,11 @@ Downloader support: **YouTube, Instagram, TikTok, X/Twitter, Spotify**
 ## Installing FFmpeg
 
 FFmpeg must be installed and available on your system PATH (not required for Docker — it's included in the image).
-yt-dlp is installed automatically via pip from requirements and is used for YouTube, Instagram, TikTok, and X/Twitter downloads.
+yt-dlp and its EJS challenge-solver package are installed automatically via
+pip from requirements and are used for YouTube, Instagram, TikTok, and
+X/Twitter downloads. The Docker image also installs Deno, yt-dlp's recommended
+JavaScript runtime, so YouTube signatures and challenges can be solved
+reliably. Direct installations must provide Deno 2.3.0 or newer on `PATH`.
 spotdl is installed automatically via pip from requirements and is used for Spotify downloads. Because Spotify streams are DRM-protected, spotdl reads the track metadata and fetches the matching audio from YouTube, so Spotify links are always saved as audio.
 
 Public posts generally work best. Some Instagram or X/Twitter links may require authentication or cookies depending on upstream site restrictions.

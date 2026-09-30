@@ -69,6 +69,9 @@ class LoggingHelpersTest(unittest.TestCase):
         self.assertIn("HTTP Error 403: Forbidden", logs)
         self.assertNotIn("access_token=secret", logs)
         self.assertEqual(_youtube_jobs[job_id]["status"], "error")
+        command = popen.call_args.args[0]
+        js_runtime_index = command.index("--js-runtimes")
+        self.assertEqual(command[js_runtime_index + 1], "deno")
 
 
 if __name__ == "__main__":
