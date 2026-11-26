@@ -111,7 +111,10 @@ class DownloadServicesTest(unittest.TestCase):
                 )
                 self.assertNotIn("PornHub", parser.sites)
                 self.assertEqual(parser.url_attributes["placeholder"], "Paste a video or audio URL")
-                self.assertEqual(parser.url_attributes["aria-describedby"], "supported-sites-note")
+                self.assertEqual(
+                    set(parser.url_attributes["aria-describedby"].split()),
+                    {"supported-sites-note", "url-error"},
+                )
                 self.assertNotIn("saved permanently", response.get_data(as_text=True))
                 response.close()
 

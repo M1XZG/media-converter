@@ -21,6 +21,9 @@
         }
 
         [data-theme="dark"] {
+            color-scheme: dark;
+            --control-border: #7d8496;
+            --accent-text: #a5b4fc;
             --bg-primary: #0f1117;
             --bg-secondary: #1a1d27;
             --bg-card: #1e2130;
@@ -30,9 +33,9 @@
             --border-focus: #6366f1;
             --text-primary: #e8eaed;
             --text-secondary: #9ba1b0;
-            --text-muted: #6b7280;
-            --accent: #6366f1;
-            --accent-hover: #818cf8;
+            --text-muted: #9ba1b0;
+            --accent: #4f46e5;
+            --accent-hover: #5b5fe5;
             --accent-glow: rgba(99, 102, 241, 0.15);
             --success: #22c55e;
             --success-bg: rgba(34, 197, 94, 0.1);
@@ -52,6 +55,9 @@
         }
 
         [data-theme="light"] {
+            color-scheme: light;
+            --control-border: #737b8f;
+            --accent-text: #4338ca;
             --bg-primary: #f5f6fa;
             --bg-secondary: #ffffff;
             --bg-card: #ffffff;
@@ -61,15 +67,15 @@
             --border-focus: #6366f1;
             --text-primary: #1a1d27;
             --text-secondary: #5f6577;
-            --text-muted: #9ba1b0;
-            --accent: #6366f1;
+            --text-muted: #62697a;
+            --accent: #4f46e5;
             --accent-hover: #4f46e5;
             --accent-glow: rgba(99, 102, 241, 0.1);
-            --success: #16a34a;
+            --success: #166534;
             --success-bg: rgba(22, 163, 74, 0.08);
-            --error: #dc2626;
+            --error: #b91c1c;
             --error-bg: rgba(220, 38, 38, 0.08);
-            --warning: #d97706;
+            --warning: #92400e;
             --warning-bg: rgba(217, 119, 6, 0.08);
             --shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
             --drop-zone-bg: rgba(99, 102, 241, 0.03);
@@ -91,8 +97,25 @@
             padding: 0;
         }
 
-        html {
-            scroll-behavior: smooth;
+        button, input, select, .header-link {
+            --border-color: var(--control-border);
+        }
+
+        :is(a, button, input, select):focus-visible {
+            outline: 3px solid var(--accent-text);
+            outline-offset: 3px;
+        }
+
+        .visually-hidden {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip-path: inset(50%);
+            white-space: nowrap;
+            border: 0;
         }
 
         body {
@@ -100,6 +123,7 @@
             background: var(--bg-primary);
             color: var(--text-primary);
             line-height: 1.6;
+            overflow-wrap: break-word;
             transition: background var(--transition-speed), color var(--transition-speed);
             min-height: 100vh;
         }
@@ -126,6 +150,8 @@
             justify-content: space-between;
             align-items: center;
             margin-bottom: 2rem;
+            gap: 1rem;
+            flex-wrap: wrap;
         }
 
         .header-actions {
@@ -381,13 +407,19 @@
             color: var(--text-muted);
         }
 
-        .drop-zone-hint strong {
-            color: var(--accent);
+        .browse-files {
+            display: inline-flex;
+            align-items: center;
+            min-block-size: 48px;
+            padding-inline: 0.75rem;
+            color: var(--accent-text);
+            text-decoration: underline;
             cursor: pointer;
         }
 
-        #file-input {
-            display: none;
+        .drop-zone:focus-within {
+            outline: 3px solid var(--accent-text);
+            outline-offset: 3px;
         }
 
         /* ----------------------------------------------------------------
@@ -592,7 +624,7 @@
         .resolution-btn .res-detail {
             display: block;
             font-size: 0.7rem;
-            opacity: 0.7;
+            color: var(--text-secondary);
             margin-top: 0.1rem;
         }
 
@@ -694,7 +726,6 @@
 
         .convert-btn:hover:not(:disabled) {
             background: var(--accent-hover);
-            transform: translateY(-1px);
             box-shadow: 0 4px 16px rgba(99, 102, 241, 0.3);
         }
 
@@ -755,12 +786,10 @@
             background: var(--accent);
             border-radius: 3px;
             width: 0%;
-            transition: width 0.3s ease;
         }
 
         .progress-bar-fill.indeterminate {
             width: 30%;
-            animation: indeterminate 1.5s ease-in-out infinite;
         }
 
         @keyframes indeterminate {
@@ -846,7 +875,6 @@
 
         .download-btn:hover {
             opacity: 0.9;
-            transform: translateY(-1px);
         }
 
         .result-error {
@@ -928,7 +956,7 @@
             border-radius: 10px;
             background: var(--bg-input);
             color: var(--text-primary);
-            font-size: 0.88rem;
+            font-size: 1rem;
             outline: none;
             transition: border-color var(--transition-speed), box-shadow var(--transition-speed);
         }
@@ -1136,6 +1164,59 @@
         /* ----------------------------------------------------------------
            Responsive
         ---------------------------------------------------------------- */
+        .mode-tab.active, .format-btn.active, .resolution-btn.active,
+        .res-badge.downscale, .youtube-mode-tab.active {
+            color: var(--accent-text);
+        }
+
+        .url-label {
+            display: block;
+            margin-bottom: 0.35rem;
+            font-size: 0.875rem;
+            font-weight: 600;
+        }
+
+        .url-error {
+            margin-top: 0.35rem;
+            color: var(--error);
+            font-size: 0.875rem;
+        }
+
+        .gif-input, .youtube-select {
+            font-size: 1rem;
+        }
+
+        button, select, .header-link {
+            min-block-size: 44px;
+            min-inline-size: 44px;
+        }
+
+        h1, h2, h3 {
+            text-wrap: balance;
+        }
+
+        @media (pointer: coarse) {
+            button, select, .youtube-url-input, .gif-input, .header-link, .browse-files {
+                min-block-size: 48px;
+            }
+        }
+
+        @media (prefers-reduced-motion: no-preference) {
+            html { scroll-behavior: smooth; }
+            .progress-bar-fill { transition: width 0.3s ease; }
+            .progress-bar-fill.indeterminate {
+                animation: indeterminate 1.5s ease-in-out infinite;
+            }
+            .convert-btn:hover:not(:disabled), .download-btn:hover {
+                transform: translateY(-1px);
+            }
+        }
+
+        @media (forced-colors: active) {
+            .active { outline: 2px solid Highlight; }
+            .progress-bar-fill { background: Highlight; }
+        }
+
         @media (max-width: 600px) {
             .container {
                 padding: 1.25rem 1rem 3rem;
@@ -1188,6 +1269,10 @@
                 </button>
             </div>
         </header>
+
+        <main>
+        <div id="ui-status" class="visually-hidden" role="status" aria-atomic="true"></div>
+        <noscript>This app needs JavaScript to upload files, start jobs and show their progress.</noscript>
 
         <!-- Main Card (converter) -->
         {% if enable_converter %}
@@ -1266,14 +1351,17 @@
             <!-- Drop Zone -->
             <div class="drop-zone" id="drop-zone">
                 <div class="drop-zone-icon">📤</div>
-                <div class="drop-zone-text">Drop your video file here</div>
-                <div class="drop-zone-hint">or <strong onclick="document.getElementById('file-input').click()">browse files</strong></div>
-                <input type="file" id="file-input" accept=".mp4,.avi,.mkv,.mov,.wmv,.flv,.webm,.m4v,.mpeg,.mpg,.3gp,.ogv,.ts,.vob">
+                <div class="drop-zone-text" id="upload-instructions">Drop your video file here</div>
+                <div class="drop-zone-hint">
+                    or
+                    <input class="visually-hidden" type="file" id="file-input" aria-describedby="upload-instructions" accept=".mp4,.avi,.mkv,.mov,.wmv,.flv,.webm,.m4v,.mpeg,.mpg,.3gp,.ogv,.ts,.vob">
+                    <label class="browse-files" for="file-input">Browse files</label>
+                </div>
             </div>
 
             <!-- Upload Progress -->
             <div class="progress-section" id="upload-progress">
-                <div class="progress-bar-track">
+                <div class="progress-bar-track" role="progressbar" aria-label="File upload" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" tabindex="-1">
                     <div class="progress-bar-fill" id="upload-progress-fill"></div>
                 </div>
                 <div class="progress-text" id="upload-progress-text">Uploading… 0%</div>
@@ -1291,21 +1379,21 @@
                             <span id="file-resolution"></span>
                         </div>
                     </div>
-                    <button class="file-remove" onclick="resetAll()" title="Remove file">✕</button>
+                    <button class="file-remove" onclick="resetAll()" aria-label="Remove file">✕</button>
                 </div>
             </div>
 
             <!-- Conversion Options -->
             <div class="convert-options" id="convert-options">
-                <div class="option-label">Conversion Mode</div>
-                <div class="mode-tabs">
-                    <button class="mode-tab active" data-mode="video" onclick="setMode('video')">
+                <div class="option-label" id="conversion-mode-label">Conversion Mode</div>
+                <div class="mode-tabs" role="group" aria-labelledby="conversion-mode-label">
+                    <button class="mode-tab active" data-mode="video" aria-pressed="true" onclick="setMode('video')">
                         🎬 Video
                     </button>
-                    <button class="mode-tab" data-mode="audio" onclick="setMode('audio')">
+                    <button class="mode-tab" data-mode="audio" aria-pressed="false" onclick="setMode('audio')">
                         🎵 Audio Only
                     </button>
-                    <button class="mode-tab" data-mode="gif" onclick="setMode('gif')">
+                    <button class="mode-tab" data-mode="gif" aria-pressed="false" onclick="setMode('gif')">
                         🎞️ GIF
                     </button>
                 </div>
@@ -1313,10 +1401,11 @@
                 <div class="option-label" id="format-label">Output Format</div>
 
                 <!-- Video Formats -->
-                <div class="format-grid" id="video-formats">
+                <div class="format-grid" id="video-formats" role="group" aria-labelledby="format-label">
                     {% for key, fmt in video_formats.items() %}
                     <button class="format-btn{% if key == 'mp4' %} active{% endif %}"
                             data-format="{{ key }}"
+                            aria-pressed="{{ 'true' if key == 'mp4' else 'false' }}"
                             onclick="setFormat('{{ key }}', 'video')">
                         {{ fmt.label }}
                     </button>
@@ -1324,10 +1413,11 @@
                 </div>
 
                 <!-- Audio Formats -->
-                <div class="format-grid" id="audio-formats" style="display: none;">
+                <div class="format-grid" id="audio-formats" role="group" aria-labelledby="format-label" style="display: none;">
                     {% for key, fmt in audio_formats.items() %}
                     <button class="format-btn{% if key == 'mp3' %} active{% endif %}"
                             data-format="{{ key }}"
+                            aria-pressed="{{ 'true' if key == 'mp3' else 'false' }}"
                             onclick="setFormat('{{ key }}', 'audio')">
                         {{ fmt.label }}
                     </button>
@@ -1383,7 +1473,7 @@
 
             <!-- Conversion Progress -->
             <div class="progress-section" id="convert-progress">
-                <div class="progress-bar-track large">
+                <div class="progress-bar-track large" role="progressbar" aria-label="File conversion" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
                     <div class="progress-bar-fill large" id="convert-progress-fill" style="width: 0%"></div>
                 </div>
                 <div class="progress-text" id="convert-progress-text">Starting conversion…</div>
@@ -1412,28 +1502,36 @@
         <div class="card">
 
             <!-- Social Media Downloader -->
-            <div id="youtube-section">
-                <div class="youtube-section-title">Download from Supported Platforms</div>
+            <form id="youtube-section" action="/media/download" method="post" novalidate aria-labelledby="downloader-heading">
+                <h2 class="youtube-section-title" id="downloader-heading">Download from Supported Platforms</h2>
                 <div class="youtube-section-subtitle">Paste a video or audio link from a supported site.</div>
 
+                <label class="url-label" for="youtube-url">Video or audio URL (required)</label>
                 <div class="youtube-input-row">
                     <input
                         id="youtube-url"
                         class="youtube-url-input"
                         type="url"
                         placeholder="Paste a video or audio URL"
-                        aria-label="Video or audio URL"
-                        aria-describedby="supported-sites-note"
+                        name="url"
+                        required
+                        inputmode="url"
+                        enterkeyhint="go"
+                        autocapitalize="none"
+                        autocorrect="off"
+                        spellcheck="false"
+                        aria-describedby="supported-sites-note url-error"
                         autocomplete="off"
                         oninput="handleYoutubeUrlInput()"
                     >
                     <button type="button" class="clipboard-btn" onclick="pasteMediaUrl()">Paste</button>
                 </div>
+                <p class="url-error" id="url-error" hidden></p>
                 <div class="clipboard-status" id="clipboard-status" role="status" aria-live="polite"></div>
 
                 <section class="supported-sites" aria-labelledby="supported-sites-title">
                     <h3 id="supported-sites-title">Supported sites</h3>
-                    <ul>
+                    <ul role="list">
                         {% for service_label in supported_download_services %}
                         <li>{{ service_label }}</li>
                         {% endfor %}
@@ -1441,15 +1539,15 @@
                     <p id="supported-sites-note">Use public video or clip links. Private, members-only and live content may not work. Spotify is audio-only.</p>
                 </section>
 
-                <div class="youtube-mode-tabs">
-                    <button type="button" class="youtube-mode-tab active" data-youtube-mode="video" onclick="setYoutubeMode('video')">🎬 Video</button>
-                    <button type="button" class="youtube-mode-tab" data-youtube-mode="audio" onclick="setYoutubeMode('audio')">🎵 Audio</button>
+                <div class="youtube-mode-tabs" role="group" aria-label="Download mode">
+                    <button type="button" class="youtube-mode-tab active" data-youtube-mode="video" aria-pressed="true" onclick="setYoutubeMode('video')">🎬 Video</button>
+                    <button type="button" class="youtube-mode-tab" data-youtube-mode="audio" aria-pressed="false" onclick="setYoutubeMode('audio')">🎵 Audio</button>
                 </div>
 
                 <div class="youtube-select-row">
                     <div class="youtube-select-group">
                         <label for="youtube-quality">Video Quality</label>
-                        <select id="youtube-quality" class="youtube-select">
+                        <select id="youtube-quality" name="quality" class="youtube-select">
                             {% for key, label in youtube_quality_options.items() %}
                             <option value="{{ key }}">{{ label }}</option>
                             {% endfor %}
@@ -1457,7 +1555,7 @@
                     </div>
                     <div class="youtube-select-group" id="youtube-audio-group" style="display: none;">
                         <label for="youtube-audio-format">Audio Format</label>
-                        <select id="youtube-audio-format" class="youtube-select">
+                        <select id="youtube-audio-format" name="audio_format" class="youtube-select">
                             <option value="mp3">MP3</option>
                             <option value="aac">AAC</option>
                         </select>
@@ -1465,16 +1563,16 @@
                 </div>
 
                 <div class="youtube-actions">
-                    <button class="youtube-download-btn" id="youtube-download-btn" onclick="startYoutubeDownload()">
+                    <button type="submit" class="youtube-download-btn" id="youtube-download-btn">
                         Download
                     </button>
-                    <button class="youtube-abort-btn" id="youtube-abort-btn" onclick="abortYoutubeDownload()">
+                    <button type="button" class="youtube-abort-btn" id="youtube-abort-btn" onclick="abortYoutubeDownload()">
                         Abort Download
                     </button>
                 </div>
 
                 <div class="progress-section" id="youtube-progress" style="margin-top: 0.85rem;">
-                    <div class="progress-bar-track">
+                    <div class="progress-bar-track" role="progressbar" aria-label="Media download" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
                         <div class="progress-bar-fill" id="youtube-progress-fill"></div>
                     </div>
                     <div class="progress-text" id="youtube-progress-text">Starting download...</div>
@@ -1486,10 +1584,11 @@
                 </div>
 
                 <div id="youtube-result" class="youtube-result"></div>
-            </div>
+            </form>
         </div>
         {% endif %}
 
+        </main>
         <footer>
             {{ app_title }} &middot; Self-hosted{% for note in footer_notes %} &middot; {{ note }}{% endfor %}
         </footer>
@@ -1528,18 +1627,20 @@
            Theme
         ============================================================ */
         function getStoredTheme() {
-            return localStorage.getItem('mc-theme') || 'dark';
+            return localStorage.getItem('mc-theme')
+                || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
         }
 
         function applyTheme(theme) {
             document.documentElement.setAttribute('data-theme', theme);
             document.getElementById('theme-icon').textContent = theme === 'dark' ? '☀️' : '🌙';
-            localStorage.setItem('mc-theme', theme);
         }
 
         function toggleTheme() {
             const current = document.documentElement.getAttribute('data-theme');
-            applyTheme(current === 'dark' ? 'light' : 'dark');
+            const theme = current === 'dark' ? 'light' : 'dark';
+            applyTheme(theme);
+            localStorage.setItem('mc-theme', theme);
         }
 
         // Apply saved theme on load
@@ -1600,7 +1701,9 @@
         const dropZone = document.getElementById('drop-zone');
         const fileInput = document.getElementById('file-input');
 
-        dropZone.addEventListener('click', () => fileInput.click());
+        dropZone.addEventListener('click', (event) => {
+            if (!event.target.closest('input, label')) fileInput.click();
+        });
 
         dropZone.addEventListener('dragover', (e) => {
             e.preventDefault();
@@ -1662,6 +1765,7 @@
                     currentFileId = data.file_id;
                     showFileInfo(data);
                     showConvertOptions();
+                    announceStatus('File uploaded. Choose your conversion settings.');
                 } else {
                     let msg = 'Upload failed.';
                     try { msg = JSON.parse(xhr.responseText).error; } catch {}
@@ -1683,10 +1787,11 @@
             const el = document.getElementById('upload-progress');
             el.classList.add('visible');
             setUploadProgress(0);
+            el.querySelector('[role="progressbar"]').focus();
         }
 
         function setUploadProgress(pct) {
-            document.getElementById('upload-progress-fill').style.width = pct + '%';
+            updateProgressBar('upload-progress-fill', pct);
             document.getElementById('upload-progress-text').textContent = `Uploading… ${pct}%`;
         }
 
@@ -1714,12 +1819,14 @@
         ============================================================ */
         function showConvertOptions() {
             document.getElementById('convert-options').classList.add('visible');
+            document.querySelector('.mode-tab.active').focus();
         }
 
         function setMode(mode) {
             currentMode = mode;
             document.querySelectorAll('.mode-tab').forEach(t => {
                 t.classList.toggle('active', t.dataset.mode === mode);
+                t.setAttribute('aria-pressed', String(t.dataset.mode === mode));
             });
             document.getElementById('video-formats').style.display = mode === 'video' ? '' : 'none';
             document.getElementById('audio-formats').style.display = mode === 'audio' ? '' : 'none';
@@ -1744,11 +1851,13 @@
                 currentVideoFormat = fmt;
                 document.querySelectorAll('#video-formats .format-btn').forEach(b => {
                     b.classList.toggle('active', b.dataset.format === fmt);
+                    b.setAttribute('aria-pressed', String(b.dataset.format === fmt));
                 });
             } else {
                 currentAudioFormat = fmt;
                 document.querySelectorAll('#audio-formats .format-btn').forEach(b => {
                     b.classList.toggle('active', b.dataset.format === fmt);
+                    b.setAttribute('aria-pressed', String(b.dataset.format === fmt));
                 });
             }
         }
@@ -1770,6 +1879,8 @@
             // "Original" button (always first, always default)
             const origBtn = document.createElement('button');
             origBtn.className = 'resolution-btn active';
+            origBtn.type = 'button';
+            origBtn.setAttribute('aria-pressed', 'true');
             origBtn.dataset.resolution = '';
             origBtn.innerHTML = `
                 <span class="res-label">Original</span>
@@ -1797,6 +1908,8 @@
 
                 const btn = document.createElement('button');
                 btn.className = 'resolution-btn';
+                btn.type = 'button';
+                btn.setAttribute('aria-pressed', 'false');
                 btn.dataset.resolution = resValue;
                 btn.innerHTML = `
                     <span class="res-label">${preset.label}</span>
@@ -1817,8 +1930,10 @@
             currentResolution = resValue || null;
             document.querySelectorAll('#resolution-grid .resolution-btn').forEach(b => {
                 b.classList.remove('active');
+                b.setAttribute('aria-pressed', 'false');
             });
             clickedBtn.classList.add('active');
+            clickedBtn.setAttribute('aria-pressed', 'true');
         }
 
         /* ============================================================
@@ -1835,7 +1950,7 @@
             btn.textContent = 'Converting…';
 
             // Reset progress UI
-            document.getElementById('convert-progress-fill').style.width = '0%';
+            updateProgressBar('convert-progress-fill', 0);
             document.getElementById('convert-progress-fill').classList.remove('indeterminate');
             document.getElementById('convert-progress-text').textContent = 'Starting conversion…';
             document.getElementById('convert-speed').textContent = '';
@@ -1902,7 +2017,7 @@
                         } else if (data.status === 'complete') {
                             clearInterval(progressPollInterval);
                             progressPollInterval = null;
-                            document.getElementById('convert-progress-fill').style.width = '100%';
+                            updateProgressBar('convert-progress-fill', 100);
                             document.getElementById('convert-progress-text').textContent = 'Complete!';
                             setTimeout(() => {
                                 document.getElementById('convert-progress').classList.remove('visible');
@@ -1931,7 +2046,7 @@
 
         function updateProgressUI(data) {
             const pct = data.percent || 0;
-            document.getElementById('convert-progress-fill').style.width = pct + '%';
+            updateProgressBar('convert-progress-fill', pct);
 
             let text = `Converting… ${pct}%`;
             document.getElementById('convert-progress-text').textContent = text;
@@ -2013,6 +2128,7 @@
                 </div>
             `;
             section.classList.add('visible');
+            announceStatus('Conversion complete. Your file is ready to download.');
         }
 
         function showError(title, detail) {
@@ -2026,26 +2142,40 @@
                 </div>
             `;
             section.classList.add('visible');
+            announceStatus(title + ': ' + detail);
         }
 
         /* ============================================================
               Social Media Downloader
         ============================================================ */
+        function announceStatus(message) {
+            document.getElementById('ui-status').textContent = message;
+        }
+
+        function updateProgressBar(id, percent) {
+            const fill = document.getElementById(id);
+            const value = Math.max(0, Math.min(100, Number(percent) || 0));
+            fill.style.width = value + '%';
+            fill.parentElement.setAttribute('aria-valuenow', String(value));
+        }
+
         function startYoutubeDownload() {
             const input = document.getElementById('youtube-url');
-            const url = input.value.trim();
+            let url = input.value.trim();
             const btn = document.getElementById('youtube-download-btn');
             const abortBtn = document.getElementById('youtube-abort-btn');
             const result = document.getElementById('youtube-result');
             const quality = document.getElementById('youtube-quality').value;
             const audioFormat = document.getElementById('youtube-audio-format').value;
 
-            if (!url) {
-                result.innerHTML = `
-                    <div class="result-error">
-                        <div class="result-message">Please enter a supported media URL.</div>
-                    </div>
-                `;
+            if (btn.disabled) return;
+            setUrlError('');
+            if (url && !/^[a-z][a-z\d+.-]*:/i.test(url)) url = 'https://' + url;
+            input.value = url;
+            if (!url || !/^https?:\/\//i.test(url) || !input.checkValidity()) {
+                setUrlError('Enter a valid video or audio URL using http:// or https://.');
+                input.reportValidity();
+                input.focus();
                 return;
             }
 
@@ -2056,7 +2186,7 @@
             abortBtn.disabled = false;
             abortBtn.textContent = 'Abort Download';
 
-            document.getElementById('youtube-progress-fill').style.width = '0%';
+            updateProgressBar('youtube-progress-fill', 0);
             document.getElementById('youtube-progress-text').textContent = 'Starting download...';
             document.getElementById('youtube-downloaded').textContent = '';
             document.getElementById('youtube-speed').textContent = '';
@@ -2082,6 +2212,10 @@
                 } else {
                     document.getElementById('youtube-progress').classList.remove('visible');
                     showYoutubeError(data.error || 'Unable to start media download.');
+                    if (status === 400 && input.value.trim() === url) {
+                        setUrlError(data.error || 'Check the URL and try again.');
+                        input.focus();
+                    }
                     btn.disabled = false;
                     btn.textContent = 'Download';
                     abortBtn.classList.remove('visible');
@@ -2100,6 +2234,7 @@
             youtubeMode = mode === 'audio' ? 'audio' : 'video';
             document.querySelectorAll('.youtube-mode-tab').forEach((tab) => {
                 tab.classList.toggle('active', tab.dataset.youtubeMode === youtubeMode);
+                tab.setAttribute('aria-pressed', String(tab.dataset.youtubeMode === youtubeMode));
             });
 
             const quality = document.getElementById('youtube-quality');
@@ -2118,6 +2253,7 @@
         }
 
         function handleYoutubeUrlInput() {
+            setUrlError('');
             const url = document.getElementById('youtube-url').value.toLowerCase();
             const isSpotify = url.includes('spotify.com');
             const videoTab = document.querySelector('.youtube-mode-tab[data-youtube-mode="video"]');
@@ -2137,6 +2273,25 @@
                 videoTab.style.cursor = '';
             }
         }
+
+        function setUrlError(message) {
+            const input = document.getElementById('youtube-url');
+            const error = document.getElementById('url-error');
+            input.setCustomValidity(message);
+            input.setAttribute('aria-invalid', String(Boolean(message)));
+            error.textContent = message;
+            error.hidden = !message;
+        }
+
+        {% if enable_downloader %}
+        document.getElementById('youtube-section').addEventListener('submit', (event) => {
+            event.preventDefault();
+            startYoutubeDownload();
+        });
+        document.getElementById('youtube-url').addEventListener('keydown', (event) => {
+            if (event.key === 'Enter' && event.isComposing) event.preventDefault();
+        });
+        {% endif %}
 
         async function pasteMediaUrl() {
             const input = document.getElementById('youtube-url');
@@ -2178,7 +2333,7 @@
                     .then(data => {
                         if (data.status === 'downloading') {
                             const pct = data.percent || 0;
-                            document.getElementById('youtube-progress-fill').style.width = pct + '%';
+                            updateProgressBar('youtube-progress-fill', pct);
                             document.getElementById('youtube-progress-text').textContent = `Downloading... ${pct}%`;
                             if (data.downloaded_size && data.total_size) {
                                 document.getElementById('youtube-downloaded').textContent = `Downloaded: ${data.downloaded_size} / ${data.total_size}`;
@@ -2245,6 +2400,7 @@
                     ${downloadLink}
                 </div>
             `;
+            announceStatus(serviceLabel + ' download complete. Your file is ready to download.');
         }
 
         function showYoutubeError(detail) {
@@ -2256,6 +2412,7 @@
                     <div class="result-detail">${escapeHtml(detail)}</div>
                 </div>
             `;
+            announceStatus('Download failed: ' + detail);
         }
 
         /* ============================================================
@@ -2306,6 +2463,7 @@
             document.getElementById('youtube-quality').value = 'best';
             document.getElementById('youtube-audio-format').value = 'mp3';
             setYoutubeMode('video');
+            handleYoutubeUrlInput();
             {% endif %}
             fileInput.value = '';
 
@@ -2313,12 +2471,9 @@
             setMode('video');
 
             // Reset format selections
-            document.querySelectorAll('#video-formats .format-btn').forEach(b => {
-                b.classList.toggle('active', b.dataset.format === 'mp4');
-            });
-            document.querySelectorAll('#audio-formats .format-btn').forEach(b => {
-                b.classList.toggle('active', b.dataset.format === 'mp3');
-            });
+            setFormat('mp4', 'video');
+            setFormat('mp3', 'audio');
+            fileInput.focus();
         }
     </script>
 </body>
