@@ -31,7 +31,7 @@ A self-hosted web application for converting video files between formats and ext
 - **No File Size Limits** — Upload files of any size
 - **Automatic Cleanup** — Temporary uploads and converted files are automatically deleted after 24 hours
 - **Persistent Downloads** — Downloaded media is stored under `downloads/<service>/` and is never auto-deleted
-- **Dark/Light Mode** — Modern UI with dark mode as default and easy toggle
+- **Dark/Light Mode** - Follows your system theme until you choose a saved preference; the media library uses the same theme
 - **Installable Web App** — Install it from supported desktop and mobile browsers for app-like launching
 - **Clipboard Paste** — Fill the downloader URL from the latest clipboard text with one tap
 - **Docker Ready** — Run with GPU support via Docker Compose in one command
@@ -159,11 +159,21 @@ on full and downloader-only instances.
 
 ### Screenshots
 
-Downloader-only view, captured on 26 November 2026:
+The downloader has a labelled URL field with inline validation. Uploads work
+with the keyboard through Browse files, and selected modes and progress are
+announced to screen readers. Controls have visible focus indicators and respect
+reduced-motion preferences. On small screens, library tables scroll without
+hiding file details.
+
+Captured on 26 November 2026. Converter and library examples use sample data.
 
 ![Downloader in dark mode with the supported-sites panel](docs/screenshots/downloader-dark-2026-11-26.png)
 
 ![Downloader in light mode with the supported-sites panel](docs/screenshots/downloader-light-2026-11-26.png)
+
+![Video conversion options in light mode](docs/screenshots/converter-light-2026-11-26.png)
+
+![Media library with sample files in light mode](docs/screenshots/library-light-2026-11-26.png)
 
 ---
 

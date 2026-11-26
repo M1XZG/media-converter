@@ -6,16 +6,77 @@
     <title>Media Library</title>
     <style>
         :root {
+            color-scheme: dark;
             --bg-primary: #0f1117;
             --bg-card: #1e2130;
             --bg-input: #262a3a;
             --border-color: #2e3348;
             --text-primary: #e8eaed;
             --text-secondary: #9ba1b0;
-            --accent: #6366f1;
-            --accent-hover: #818cf8;
+            --control-border: #7d8496;
+            --accent-text: #a5b4fc;
+            --accent: #4f46e5;
+            --accent-hover: #5b5fe5;
             --success: #22c55e;
-            --danger: #ef4444;
+            --danger: #b91c1c;
+            --danger-text: #fca5a5;
+        }
+
+        [data-theme="light"] {
+            color-scheme: light;
+            --bg-primary: #f5f6fa;
+            --bg-card: #ffffff;
+            --bg-input: #f0f1f5;
+            --border-color: #e0e2ea;
+            --control-border: #737b8f;
+            --text-primary: #1a1d27;
+            --text-secondary: #5f6577;
+            --accent-text: #4338ca;
+            --success: #166534;
+            --danger-text: #991b1b;
+        }
+
+        :where(a, button, input, .table-wrap):focus-visible {
+            outline: 3px solid var(--accent-text);
+            outline-offset: 3px;
+        }
+
+        .visually-hidden {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            margin: -1px;
+            padding: 0;
+            overflow: hidden;
+            clip-path: inset(50%);
+            white-space: nowrap;
+            border: 0;
+        }
+
+        .table-wrap {
+            overflow-x: auto;
+        }
+
+        .table-wrap:focus-visible {
+            outline-offset: -3px;
+        }
+
+        .file-select {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-inline-size: 44px;
+            min-block-size: 44px;
+        }
+
+        input[type="checkbox"] {
+            accent-color: var(--accent);
+        }
+
+        @media (pointer: coarse) {
+            .btn, .file-select, .download-link {
+                min-block-size: 48px;
+            }
         }
 
         * {
@@ -30,6 +91,7 @@
             color: var(--text-primary);
             min-height: 100vh;
             line-height: 1.5;
+            overflow-wrap: break-word;
         }
 
         .container {
@@ -59,7 +121,7 @@
         }
 
         .btn {
-            border: 1px solid var(--border-color);
+            border: 1px solid var(--control-border);
             border-radius: 10px;
             padding: 0.58rem 0.9rem;
             font-size: 0.82rem;
@@ -68,6 +130,9 @@
             color: var(--text-primary);
             text-decoration: none;
             cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            min-block-size: 44px;
         }
 
         .btn:hover {
@@ -129,6 +194,7 @@
 
         table {
             width: 100%;
+            min-inline-size: 36rem;
             border-collapse: collapse;
         }
 
@@ -159,6 +225,9 @@
             color: var(--success);
             text-decoration: none;
             font-weight: 700;
+            display: inline-flex;
+            align-items: center;
+            min-block-size: 44px;
         }
 
         .download-link:hover {
@@ -179,56 +248,54 @@
         }
 
         .status.error {
-            color: var(--danger);
-        }
-
-        @media (max-width: 750px) {
-            th:nth-child(3), td:nth-child(3) {
-                display: none;
-            }
+            color: var(--danger-text);
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="header">
+        <header class="header">
             <h1>Media Library</h1>
             <div class="actions">
                 <a class="btn" href="/">Back to {{ app_title }}</a>
                 <button class="btn primary" id="download-selected-btn" onclick="downloadSelected()">Download Selected</button>
                 <button class="btn danger" id="delete-selected-btn" onclick="deleteSelected()">Delete Selected</button>
             </div>
-        </div>
+        </header>
 
+        <main>
         {% if enable_converter %}
         <div class="card">
             <div class="card-header">
-                <h2>Converted Files</h2>
+                <h2 id="converted-heading">Converted Files</h2>
                 <span class="count">{{ converted_files|length }} file(s)</span>
             </div>
             {% if converted_files %}
+            <div class="table-wrap" tabindex="0" role="region" aria-labelledby="converted-heading">
             <table>
+                <caption class="visually-hidden">Converted files available to select and download</caption>
                 <thead>
                     <tr>
-                        <th style="width: 36px;"><input type="checkbox" onchange="toggleGroup('converted', this.checked)"></th>
-                        <th>Path</th>
-                        <th>Modified</th>
-                        <th>Size</th>
-                        <th style="width: 80px;">Action</th>
+                        <th scope="col"><label class="file-select"><input type="checkbox" aria-label="Select all converted files" onchange="toggleGroup('converted', this.checked)"></label></th>
+                        <th scope="col">Path</th>
+                        <th scope="col">Modified</th>
+                        <th scope="col">Size</th>
+                        <th scope="col" style="width: 80px;">Action</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for f in converted_files %}
                     <tr>
-                        <td><input type="checkbox" class="file-check" data-root="converted" data-path="{{ f.relative_path }}"></td>
+                        <td><label class="file-select"><input type="checkbox" class="file-check" aria-label="Select {{ f.relative_path }}" data-root="converted" data-path="{{ f.relative_path }}"></label></td>
                         <td class="file-name">{{ f.relative_path }}</td>
                         <td>{{ f.modified }}</td>
                         <td>{{ f.size }}</td>
-                        <td><a class="download-link" href="/files/download?root=converted&path={{ f.relative_path|urlencode }}">Download</a></td>
+                        <td><a class="download-link" aria-label="Download {{ f.relative_path }}" href="/files/download?root=converted&path={{ f.relative_path|urlencode }}">Download</a></td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
+            </div>
             {% else %}
             <div class="empty">No converted files available.</div>
             {% endif %}
@@ -238,42 +305,49 @@
         {% if enable_downloader %}
         <div class="card">
             <div class="card-header">
-                <h2>Downloads Folder</h2>
+                <h2 id="downloads-heading">Downloads Folder</h2>
                 <span class="count">{{ downloaded_files|length }} file(s)</span>
             </div>
             {% if downloaded_files %}
+            <div class="table-wrap" tabindex="0" role="region" aria-labelledby="downloads-heading">
             <table>
+                <caption class="visually-hidden">Downloaded files available to select and download</caption>
                 <thead>
                     <tr>
-                        <th style="width: 36px;"><input type="checkbox" onchange="toggleGroup('downloads', this.checked)"></th>
-                        <th>Path</th>
-                        <th>Modified</th>
-                        <th>Size</th>
-                        <th style="width: 80px;">Action</th>
+                        <th scope="col"><label class="file-select"><input type="checkbox" aria-label="Select all downloaded files" onchange="toggleGroup('downloads', this.checked)"></label></th>
+                        <th scope="col">Path</th>
+                        <th scope="col">Modified</th>
+                        <th scope="col">Size</th>
+                        <th scope="col" style="width: 80px;">Action</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for f in downloaded_files %}
                     <tr>
-                        <td><input type="checkbox" class="file-check" data-root="downloads" data-path="{{ f.relative_path }}"></td>
+                        <td><label class="file-select"><input type="checkbox" class="file-check" aria-label="Select {{ f.relative_path }}" data-root="downloads" data-path="{{ f.relative_path }}"></label></td>
                         <td class="file-name">{{ f.relative_path }}</td>
                         <td>{{ f.modified }}</td>
                         <td>{{ f.size }}</td>
-                        <td><a class="download-link" href="/files/download?root=downloads&path={{ f.relative_path|urlencode }}">Download</a></td>
+                        <td><a class="download-link" aria-label="Download {{ f.relative_path }}" href="/files/download?root=downloads&path={{ f.relative_path|urlencode }}">Download</a></td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
+            </div>
             {% else %}
             <div class="empty">No files in downloads yet.</div>
             {% endif %}
         </div>
         {% endif %}
 
-        <div id="status" class="status"></div>
+        <div id="status" class="status" role="status" aria-atomic="true"></div>
+        </main>
     </div>
 
     <script>
+        document.documentElement.dataset.theme = localStorage.getItem('mc-theme')
+            || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+
         function selectedItems() {
             const checks = document.querySelectorAll('.file-check:checked');
             return Array.from(checks).map((el) => ({
