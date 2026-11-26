@@ -967,6 +967,41 @@
             color: var(--error);
         }
 
+        .supported-sites {
+            margin: 0.4rem 0 0.9rem;
+            padding: 0.75rem;
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+        }
+
+        .supported-sites h3 {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+        }
+
+        .supported-sites ul {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.375rem;
+            margin-top: 0.5rem;
+            list-style: none;
+        }
+
+        .supported-sites li {
+            padding: 0.15rem 0.5rem;
+            border-radius: 6px;
+            background: var(--tag-bg);
+            color: var(--tag-text);
+            font-size: 0.75rem;
+        }
+
+        .supported-sites p {
+            margin-top: 0.5rem;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
         .youtube-download-btn {
             border: none;
             border-radius: 10px;
@@ -1379,14 +1414,16 @@
             <!-- Social Media Downloader -->
             <div id="youtube-section">
                 <div class="youtube-section-title">Download from Supported Platforms</div>
-                <div class="youtube-section-subtitle">Paste a YouTube, Instagram, TikTok, X/Twitter, or Spotify URL. Spotify links are always saved as audio. Files are saved permanently under downloads/&lt;service&gt;.</div>
+                <div class="youtube-section-subtitle">Paste a video or audio link from a supported site.</div>
 
                 <div class="youtube-input-row">
                     <input
                         id="youtube-url"
                         class="youtube-url-input"
                         type="url"
-                        placeholder="https://www.youtube.com/watch?v=... or https://open.spotify.com/track/..."
+                        placeholder="Paste a video or audio URL"
+                        aria-label="Video or audio URL"
+                        aria-describedby="supported-sites-note"
                         autocomplete="off"
                         oninput="handleYoutubeUrlInput()"
                     >
@@ -1394,11 +1431,15 @@
                 </div>
                 <div class="clipboard-status" id="clipboard-status" role="status" aria-live="polite"></div>
 
-                <div class="format-tags" style="margin-bottom: 0.9rem;">
-                    {% for service_label in supported_download_services %}
-                    <span class="format-tag">{{ service_label }}</span>
-                    {% endfor %}
-                </div>
+                <section class="supported-sites" aria-labelledby="supported-sites-title">
+                    <h3 id="supported-sites-title">Supported sites</h3>
+                    <ul>
+                        {% for service_label in supported_download_services %}
+                        <li>{{ service_label }}</li>
+                        {% endfor %}
+                    </ul>
+                    <p id="supported-sites-note">Use public video or clip links. Private, members-only and live content may not work. Spotify is audio-only.</p>
+                </section>
 
                 <div class="youtube-mode-tabs">
                     <button type="button" class="youtube-mode-tab active" data-youtube-mode="video" onclick="setYoutubeMode('video')">🎬 Video</button>

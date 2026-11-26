@@ -152,12 +152,6 @@ logger = logging.getLogger("media_converter")
 
 UPLOAD_FOLDER.mkdir(exist_ok=True)
 CONVERTED_FOLDER.mkdir(exist_ok=True)
-YOUTUBE_DOWNLOADS_FOLDER.mkdir(parents=True, exist_ok=True)
-INSTAGRAM_DOWNLOADS_FOLDER.mkdir(parents=True, exist_ok=True)
-TIKTOK_DOWNLOADS_FOLDER.mkdir(parents=True, exist_ok=True)
-TWITTER_DOWNLOADS_FOLDER.mkdir(parents=True, exist_ok=True)
-PORNHUB_DOWNLOADS_FOLDER.mkdir(parents=True, exist_ok=True)
-SPOTIFY_DOWNLOADS_FOLDER.mkdir(parents=True, exist_ok=True)
 
 # Active conversion jobs: file_id -> job dict
 _active_jobs: dict[str, dict] = {}
@@ -214,6 +208,46 @@ SUPPORTED_DOWNLOAD_SERVICES = {
         "folder": TWITTER_DOWNLOADS_FOLDER,
         "domains": ("twitter.com", "x.com"),
     },
+    "reddit": {
+        "label": "Reddit",
+        "folder": DOWNLOADS_FOLDER / "reddit",
+        "domains": ("reddit.com", "redd.it"),
+    },
+    "facebook": {
+        "label": "Facebook",
+        "folder": DOWNLOADS_FOLDER / "facebook",
+        "domains": ("facebook.com", "fb.watch"),
+    },
+    "twitch": {
+        "label": "Twitch",
+        "folder": DOWNLOADS_FOLDER / "twitch",
+        "domains": ("twitch.tv",),
+    },
+    "vimeo": {
+        "label": "Vimeo",
+        "folder": DOWNLOADS_FOLDER / "vimeo",
+        "domains": ("vimeo.com",),
+    },
+    "bluesky": {
+        "label": "Bluesky",
+        "folder": DOWNLOADS_FOLDER / "bluesky",
+        "domains": ("bsky.app",),
+    },
+    "dailymotion": {
+        "label": "Dailymotion",
+        "folder": DOWNLOADS_FOLDER / "dailymotion",
+        "domains": ("dailymotion.com", "dai.ly"),
+    },
+    "pinterest": {
+        "label": "Pinterest",
+        "folder": DOWNLOADS_FOLDER / "pinterest",
+        "domains": ("pinterest.com", "pinterest.co.uk", "pin.it"),
+    },
+    "streamable": {
+        "label": "Streamable",
+        "folder": DOWNLOADS_FOLDER / "streamable",
+        "domains": ("streamable.com",),
+    },
     "pornhub": {
         "label": "PornHub",
         "folder": PORNHUB_DOWNLOADS_FOLDER,
@@ -229,6 +263,9 @@ SUPPORTED_DOWNLOAD_SERVICES = {
         "audio_only": True,
     },
 }
+
+for service_info in SUPPORTED_DOWNLOAD_SERVICES.values():
+    service_info["folder"].mkdir(parents=True, exist_ok=True)
 
 
 # ---------------------------------------------------------------------------

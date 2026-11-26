@@ -22,7 +22,7 @@ A self-hosted web application for converting video files between formats and ext
 
 - **Video Format Conversion** — Convert between popular video formats (MP4, AVI, MKV, MOV, WMV, FLV, WebM)
 - **Audio Extraction** — Extract audio tracks from video files (MP3, AAC, WAV, FLAC, OGG)
-- **Social Media Downloader** — Download media from YouTube, Instagram, TikTok, X/Twitter, and Spotify with mode selection (video/audio), quality presets, and abort support
+- **Social Media Downloader** - Download media from the supported sites below with video/audio selection, quality presets and abort support
 - **Media Library Page** — Browse `converted/` and `downloads/` in a simple web file browser with selectable multi-file download
 - **Resolution Scaling** — Upscale or downscale video (480p, 720p, 1080p, 1440p, 4K) with high-quality Lanczos filtering
 - **GPU Acceleration** — Automatically uses hardware encoding (NVIDIA NVENC, AMD AMF, Intel QSV, VA-API) when available, with seamless CPU fallback
@@ -94,7 +94,7 @@ When the converter is disabled, its UI **and** its HTTP routes are turned off (d
 <details>
 <summary><strong>🪟 Windows</strong></summary>
 
-**Prerequisites:** Python 3.10+ and [FFmpeg](#installing-ffmpeg) on your PATH.
+**Prerequisites:** Python 3.11+ and [FFmpeg](#installing-ffmpeg) on your PATH.
 
 ```bash
 git clone https://github.com/M1XZG/media-converter.git
@@ -107,7 +107,7 @@ setup.bat
 <details>
 <summary><strong>🐧 Linux / macOS</strong></summary>
 
-**Prerequisites:** Python 3.10+ and [FFmpeg](#installing-ffmpeg) on your PATH.
+**Prerequisites:** Python 3.11+ and [FFmpeg](#installing-ffmpeg) on your PATH.
 
 ```bash
 git clone https://github.com/M1XZG/media-converter.git
@@ -121,7 +121,7 @@ chmod +x setup.sh
 <details>
 <summary><strong>⚙️ Manual Setup</strong></summary>
 
-**Prerequisites:** Python 3.10+ and [FFmpeg](#installing-ffmpeg) on your PATH.
+**Prerequisites:** Python 3.11+ and [FFmpeg](#installing-ffmpeg) on your PATH.
 
 ```bash
 # Create and activate virtual environment
@@ -143,7 +143,27 @@ Then open your browser to **http://localhost:5000**
 
 Media Library page: **http://localhost:5000/files**
 
-Downloader support: **YouTube, Instagram, TikTok, X/Twitter, Spotify**
+## Supported download sites
+
+YouTube, Instagram, TikTok, X/Twitter, Reddit, Facebook, Twitch, Vimeo,
+Bluesky, Dailymotion, Pinterest and Streamable support video and audio
+downloads. Spotify links are audio-only.
+
+Use individual public video, post, clip or recorded-stream links. Private,
+members-only, region-restricted and live content may not work. Site support
+depends on yt-dlp and can change when platforms update. Only download content
+you own or have permission to save.
+
+The page lists supported sites below the URL field, with the same list shown
+on full and downloader-only instances.
+
+### Screenshots
+
+Downloader-only view, captured on 26 November 2026:
+
+![Downloader in dark mode with the supported-sites panel](docs/screenshots/downloader-dark-2026-11-26.png)
+
+![Downloader in light mode with the supported-sites panel](docs/screenshots/downloader-light-2026-11-26.png)
 
 ---
 
@@ -151,8 +171,9 @@ Downloader support: **YouTube, Instagram, TikTok, X/Twitter, Spotify**
 
 FFmpeg must be installed and available on your system PATH (not required for Docker — it's included in the image).
 yt-dlp and its EJS challenge-solver package are installed automatically via
-pip from requirements and are used for YouTube, Instagram, TikTok, and
-X/Twitter downloads. The Docker image also installs Deno, yt-dlp's recommended
+pip from requirements and are used for all supported sites except Spotify.
+The minimum yt-dlp release is 2026.11.23, which requires Python 3.11 or newer.
+The Docker image also installs Deno, yt-dlp's recommended
 JavaScript runtime, so YouTube signatures and challenges can be solved
 reliably. Direct installations must provide Deno 2.3.0 or newer on `PATH`.
 spotdl is installed automatically via pip from requirements and is used for Spotify downloads. Because Spotify streams are DRM-protected, spotdl reads the track metadata and fetches the matching audio from YouTube, so Spotify links are always saved as audio.
