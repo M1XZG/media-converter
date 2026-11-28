@@ -104,34 +104,25 @@ class DownloadServicesTest(unittest.TestCase):
 
     @patch("app._spotdl_available", return_value=True)
     @patch("app._ytdlp_available", return_value=True)
-    @patch("app.threading.Thread", ImmediateThread)
     @patch("app.subprocess.Popen")
-    def test_flac_audio_downloads_use_flac_with_ytdlp_and_spotdl(
-        self, popen, _ytdlp, _spotdl
-    ):
-        process = MagicMock()
-        process.stdout = []
-        process.returncode = 1
-        popen.return_value = process
+    def test_flac_audio_downloads_are_rejected(self, popen, _ytdlp, _spotdl):
         client = media_app.app.test_client()
 
-        for url, tool in (
-            ("https://www.youtube.com/watch?v=example", "yt-dlp"),
-            ("https://open.spotify.com/track/example", "spotdl"),
+        for url in (
+            "https://www.youtube.com/watch?v=example",
+            "https://open.spotify.com/track/example",
         ):
-            with self.subTest(tool=tool), self.assertLogs("media_converter"):
+            with self.subTest(url=url):
                 response = client.post(
                     "/media/download",
                     json={"url": url, "mode": "audio", "audio_format": "flac"},
                 )
-            self.assertEqual(response.status_code, 200)
-            job_id = response.get_json()["job_id"]
-            command = popen.call_args.args[0]
-            self.assertEqual(command[0], tool)
-            format_option = "--format" if tool == "spotdl" else "--audio-format"
-            self.assertEqual(command[command.index(format_option) + 1], "flac")
-            self.assertEqual(media_app._youtube_jobs[job_id]["audio_format"], "flac")
-            media_app._youtube_jobs.pop(job_id, None)
+                self.assertEqual(response.status_code, 400)
+                self.assertEqual(
+                    response.get_json()["error"],
+                    "Unsupported audio format. Use mp3 or aac.",
+                )
+        popen.assert_not_called()
 
     @patch("app._ytdlp_available", return_value=True)
     @patch("app.threading.Thread", ImmediateThread)
@@ -197,7 +188,7 @@ class DownloadServicesTest(unittest.TestCase):
                     {"supported-sites-note", "url-error"},
                 )
                 page = response.get_data(as_text=True)
-                self.assertIn('<option value="flac">FLAC</option>', page)
+                self.assertNotIn('<option value="flac">', page)
                 self.assertIn('href="https://github.com/M1XZG/media-converter"', page)
                 self.assertRegex(
                     page,

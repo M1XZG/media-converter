@@ -148,7 +148,9 @@ Media Library page: **http://localhost:5000/files**
 YouTube, Instagram, TikTok, X/Twitter, Reddit, Facebook, Twitch, Vimeo,
 Bluesky, Dailymotion, Pinterest and Streamable support video and audio
 downloads. Spotify links are audio-only.
-Audio downloads can be saved as MP3, AAC or FLAC.
+Audio downloads can be saved as MP3 or AAC. There is no FLAC download option
+because these sites only serve compressed audio (Spotify tracks are fetched
+from YouTube), so a lossless file would be larger without sounding better.
 
 Use individual public video, post, clip or recorded-stream links. Private,
 members-only, region-restricted and live content may not work. Site support
