@@ -2,6 +2,8 @@ import unittest
 from html.parser import HTMLParser
 from unittest.mock import MagicMock, patch
 
+from yt_dlp import YoutubeDL
+
 import app as media_app
 
 
@@ -64,6 +66,36 @@ class DownloadServicesTest(unittest.TestCase):
         for domain in ("reddit.com.evil.test", "notfacebook.com", "twitch.tv@evil.test"):
             with self.subTest(domain=domain):
                 self.assertIsNone(media_app._detect_download_service(f"https://{domain}/video"))
+
+    @patch("app._ytdlp_available", return_value=True)
+    @patch("app.threading.Thread", ImmediateThread)
+    @patch("app.subprocess.Popen")
+    def test_video_quality_beats_codec_preference_within_cap(self, popen, _available):
+        popen.return_value.stdout = []
+        popen.return_value.returncode = 1
+        client = media_app.app.test_client()
+        for quality, expected in (("1080", 1080), ("720", 720), ("480", 360), ("best", 1440)):
+            with self.subTest(quality=quality), self.assertLogs("media_converter"):
+                response = client.post("/media/download", json={
+                    "url": "https://www.youtube.com/watch?v=example", "quality": quality,
+                })
+                self.addCleanup(media_app._youtube_jobs.pop, response.get_json()["job_id"])
+                cmd = popen.call_args.args[0]
+                with YoutubeDL({"format": cmd[cmd.index("-f") + 1], "quiet": True,
+                                "format_sort": cmd[cmd.index("-S") + 1].split(",")}) as ydl:
+                    result = ydl.process_ie_result({
+                        "id": "example", "title": "example", "extractor": "test",
+                        "formats": [
+                            {"format_id": name, "url": f"https://example.test/{name}.mp4",
+                             "height": h, "vcodec": vc, "acodec": ac}
+                            for name, h, vc, ac in (
+                                ("muxed", 360, "avc1", "mp4a.40.2"),
+                                ("hd", 720, "avc1", "none"), ("fullhd", 1080, "avc1", "none"),
+                                ("qhd", 1440, "vp9", "none"), ("audio", None, "none", "mp4a.40.2"),
+                            )
+                        ],
+                    }, download=False)
+                self.assertEqual(result["height"], expected)
 
     @patch("app._ytdlp_available", return_value=True)
     @patch("app.threading.Thread", ImmediateThread)
