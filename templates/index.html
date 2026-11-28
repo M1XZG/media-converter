@@ -1017,11 +1017,35 @@
         }
 
         .supported-sites li {
-            padding: 0.15rem 0.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 2.5rem;
+            height: 2.5rem;
+            padding: 0.45rem;
             border-radius: 6px;
             background: var(--tag-bg);
-            color: var(--tag-text);
-            font-size: 0.75rem;
+            color: var(--text-primary);
+        }
+
+        .supported-site-icon {
+            display: block;
+            width: 1.5rem;
+            height: 1.5rem;
+            flex: none;
+            background-color: var(--site-brand-color);
+            mask: var(--site-icon) center / contain no-repeat;
+            -webkit-mask: var(--site-icon) center / contain no-repeat;
+        }
+
+        [data-theme="dark"] .supported-site-icon[data-site="tiktok"],
+        [data-theme="dark"] .supported-site-icon[data-site="x"],
+        [data-theme="dark"] .supported-site-icon[data-site="dailymotion"] {
+            background-color: var(--text-primary);
+        }
+
+        .supported-sites li:hover {
+            background: var(--bg-hover);
         }
 
         .supported-sites p {
@@ -1159,6 +1183,27 @@
             margin-top: 3rem;
             font-size: 0.8rem;
             color: var(--text-muted);
+        }
+
+        .footer-repo-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            color: inherit;
+            text-decoration: none;
+        }
+
+        .footer-repo-link:hover {
+            text-decoration: underline;
+        }
+
+        .footer-github-icon {
+            display: inline-block;
+            width: 1rem;
+            height: 1rem;
+            background-color: currentColor;
+            mask: url("{{ url_for('static', filename='site-icons/github.svg') }}") center / contain no-repeat;
+            -webkit-mask: url("{{ url_for('static', filename='site-icons/github.svg') }}") center / contain no-repeat;
         }
 
         /* ----------------------------------------------------------------
@@ -1532,8 +1577,16 @@
                 <section class="supported-sites" aria-labelledby="supported-sites-title">
                     <h3 id="supported-sites-title">Supported sites</h3>
                     <ul role="list">
-                        {% for service_label in supported_download_services %}
-                        <li>{{ service_label }}</li>
+                        {% for service in supported_download_services %}
+                        <li title="{{ service.label }}">
+                            <span
+                                class="supported-site-icon"
+                                data-site="{{ service.icon }}"
+                                aria-hidden="true"
+                                style="--site-icon: url('{{ url_for('static', filename='site-icons/' ~ service.icon ~ '.svg') }}'); --site-brand-color: #{{ service.logo_color }};"
+                            ></span>
+                            <span class="visually-hidden">{{ service.label }}</span>
+                        </li>
                         {% endfor %}
                     </ul>
                     <p id="supported-sites-note">Use public video or clip links. Private, members-only and live content may not work. Spotify is audio-only.</p>
@@ -1591,6 +1644,9 @@
         </main>
         <footer>
             {{ app_title }} &middot; Self-hosted{% for note in footer_notes %} &middot; {{ note }}{% endfor %}
+            &middot; <a class="footer-repo-link" href="https://github.com/M1XZG/media-converter">
+                <span class="footer-github-icon" aria-hidden="true"></span>GitHub repository
+            </a>
         </footer>
     </div>
 
