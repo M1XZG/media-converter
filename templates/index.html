@@ -1193,6 +1193,12 @@
             text-decoration: none;
         }
 
+        .footer-repo {
+            display: flex;
+            justify-content: center;
+            margin-top: 0.35rem;
+        }
+
         .footer-repo-link:hover {
             text-decoration: underline;
         }
@@ -1611,6 +1617,7 @@
                         <select id="youtube-audio-format" name="audio_format" class="youtube-select">
                             <option value="mp3">MP3</option>
                             <option value="aac">AAC</option>
+                            <option value="flac">FLAC</option>
                         </select>
                     </div>
                 </div>
@@ -1643,10 +1650,14 @@
 
         </main>
         <footer>
-            {{ app_title }} &middot; Self-hosted{% for note in footer_notes %} &middot; {{ note }}{% endfor %}
-            &middot; <a class="footer-repo-link" href="https://github.com/M1XZG/media-converter">
-                <span class="footer-github-icon" aria-hidden="true"></span>GitHub repository
-            </a>
+            <div class="footer-copy">
+                {{ app_title }} &middot; Self-hosted{% for note in footer_notes %} &middot; {{ note }}{% endfor %}
+            </div>
+            <div class="footer-repo">
+                <a class="footer-repo-link" href="https://github.com/M1XZG/media-converter">
+                    <span class="footer-github-icon" aria-hidden="true"></span>GitHub repository
+                </a>
+            </div>
         </footer>
     </div>
 

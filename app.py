@@ -185,7 +185,7 @@ YOUTUBE_QUALITY_OPTIONS = {
     "480": "480p",
 }
 
-YOUTUBE_AUDIO_FORMATS = {"mp3", "aac"}
+YOUTUBE_AUDIO_FORMATS = {"mp3", "aac", "flac"}
 
 SUPPORTED_DOWNLOAD_SERVICES = {
     "youtube": {
@@ -1269,7 +1269,7 @@ def youtube_download():
         return jsonify({"error": "Unsupported quality selection."}), 400
 
     if mode == "audio" and audio_format not in YOUTUBE_AUDIO_FORMATS:
-        return jsonify({"error": "Unsupported audio format. Use mp3 or aac."}), 400
+        return jsonify({"error": "Unsupported audio format. Use mp3, aac or flac."}), 400
 
     # spotdl stores AAC audio in an m4a container.
     spotdl_format = "m4a" if audio_format == "aac" else audio_format
