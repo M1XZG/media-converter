@@ -190,61 +190,85 @@ YOUTUBE_AUDIO_FORMATS = {"mp3", "aac"}
 SUPPORTED_DOWNLOAD_SERVICES = {
     "youtube": {
         "label": "YouTube",
+        "icon": "youtube",
+        "logo_color": "FF0000",
         "folder": YOUTUBE_DOWNLOADS_FOLDER,
         "domains": ("youtube.com", "youtu.be"),
     },
     "instagram": {
         "label": "Instagram",
+        "icon": "instagram",
+        "logo_color": "FF0069",
         "folder": INSTAGRAM_DOWNLOADS_FOLDER,
         "domains": ("instagram.com",),
     },
     "tiktok": {
         "label": "TikTok",
+        "icon": "tiktok",
+        "logo_color": "000000",
         "folder": TIKTOK_DOWNLOADS_FOLDER,
         "domains": ("tiktok.com", "vt.tiktok.com", "vm.tiktok.com"),
     },
     "twitter": {
         "label": "X/Twitter",
+        "icon": "x",
+        "logo_color": "000000",
         "folder": TWITTER_DOWNLOADS_FOLDER,
         "domains": ("twitter.com", "x.com"),
     },
     "reddit": {
         "label": "Reddit",
+        "icon": "reddit",
+        "logo_color": "FF4500",
         "folder": DOWNLOADS_FOLDER / "reddit",
         "domains": ("reddit.com", "redd.it"),
     },
     "facebook": {
         "label": "Facebook",
+        "icon": "facebook",
+        "logo_color": "0866FF",
         "folder": DOWNLOADS_FOLDER / "facebook",
         "domains": ("facebook.com", "fb.watch"),
     },
     "twitch": {
         "label": "Twitch",
+        "icon": "twitch",
+        "logo_color": "9146FF",
         "folder": DOWNLOADS_FOLDER / "twitch",
         "domains": ("twitch.tv",),
     },
     "vimeo": {
         "label": "Vimeo",
+        "icon": "vimeo",
+        "logo_color": "1AB7EA",
         "folder": DOWNLOADS_FOLDER / "vimeo",
         "domains": ("vimeo.com",),
     },
     "bluesky": {
         "label": "Bluesky",
+        "icon": "bluesky",
+        "logo_color": "1185FE",
         "folder": DOWNLOADS_FOLDER / "bluesky",
         "domains": ("bsky.app",),
     },
     "dailymotion": {
         "label": "Dailymotion",
+        "icon": "dailymotion",
+        "logo_color": "0A0A0A",
         "folder": DOWNLOADS_FOLDER / "dailymotion",
         "domains": ("dailymotion.com", "dai.ly"),
     },
     "pinterest": {
         "label": "Pinterest",
+        "icon": "pinterest",
+        "logo_color": "BD081C",
         "folder": DOWNLOADS_FOLDER / "pinterest",
         "domains": ("pinterest.com", "pinterest.co.uk", "pin.it"),
     },
     "streamable": {
         "label": "Streamable",
+        "icon": "streamable",
+        "logo_color": "0F90FA",
         "folder": DOWNLOADS_FOLDER / "streamable",
         "domains": ("streamable.com",),
     },
@@ -256,6 +280,8 @@ SUPPORTED_DOWNLOAD_SERVICES = {
     },
     "spotify": {
         "label": "Spotify",
+        "icon": "spotify",
+        "logo_color": "1ED760",
         "folder": SPOTIFY_DOWNLOADS_FOLDER,
         "domains": ("open.spotify.com", "spotify.com"),
         # Spotify streams are DRM-protected; spotdl fetches the matching
@@ -643,7 +669,11 @@ def index():
         ffmpeg_ok=_ffmpeg_available(),
         ytdlp_ok=_ytdlp_available(),
         youtube_quality_options=YOUTUBE_QUALITY_OPTIONS,
-        supported_download_services=[info["label"] for info in SUPPORTED_DOWNLOAD_SERVICES.values() if not info.get("hidden")],
+        supported_download_services=[
+            info
+            for info in SUPPORTED_DOWNLOAD_SERVICES.values()
+            if not info.get("hidden")
+        ],
         gpu_info=gpu,
         enable_converter=ENABLE_CONVERTER,
         enable_downloader=ENABLE_DOWNLOADER,

@@ -23,6 +23,8 @@ class SupportedSitesParser(HTMLParser):
         self.in_panel = False
         self.in_site = False
         self.sites = []
+        self.site_attributes = []
+        self.site_icons = []
         self.url_attributes = {}
 
     def handle_starttag(self, tag, attrs):
@@ -31,6 +33,9 @@ class SupportedSitesParser(HTMLParser):
             self.in_panel = True
         if self.in_panel and tag == "li":
             self.in_site = True
+            self.site_attributes.append(attrs)
+        if self.in_site and tag == "span" and "supported-site-icon" in attrs.get("class", ""):
+            self.site_icons.append(attrs)
         if tag == "input" and attrs.get("id") == "youtube-url":
             self.url_attributes = attrs
 
@@ -41,7 +46,7 @@ class SupportedSitesParser(HTMLParser):
             self.in_site = False
 
     def handle_data(self, data):
-        if self.in_site:
+        if self.in_site and data.strip():
             self.sites.append(data.strip())
 
 
@@ -110,11 +115,31 @@ class DownloadServicesTest(unittest.TestCase):
                      "Twitch", "Vimeo", "Bluesky", "Dailymotion", "Pinterest", "Streamable", "Spotify"],
                 )
                 self.assertNotIn("PornHub", parser.sites)
+                self.assertEqual(
+                    [attrs["title"] for attrs in parser.site_attributes],
+                    parser.sites,
+                )
+                self.assertEqual(len(parser.site_icons), len(parser.sites))
+                self.assertTrue(all(attrs.get("aria-hidden") == "true" for attrs in parser.site_icons))
+                for attrs in parser.site_icons:
+                    icon_response = client.get(
+                        f"/static/site-icons/{attrs['data-site']}.svg"
+                    )
+                    self.assertEqual(icon_response.status_code, 200)
+                    self.assertIn("<svg", icon_response.get_data(as_text=True))
+                    icon_response.close()
                 self.assertEqual(parser.url_attributes["placeholder"], "Paste a video or audio URL")
                 self.assertEqual(
                     set(parser.url_attributes["aria-describedby"].split()),
                     {"supported-sites-note", "url-error"},
                 )
+                self.assertIn(
+                    'href="https://github.com/M1XZG/media-converter"',
+                    response.get_data(as_text=True),
+                )
+                github_icon_response = client.get("/static/site-icons/github.svg")
+                self.assertEqual(github_icon_response.status_code, 200)
+                github_icon_response.close()
                 self.assertNotIn("saved permanently", response.get_data(as_text=True))
                 response.close()
 
