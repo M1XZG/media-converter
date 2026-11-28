@@ -1348,11 +1348,10 @@ def youtube_download():
             cmd.extend([
                 "-f",
                 quality_formats[quality],
-                # Prefer H.264 video and AAC audio for broad playback compatibility.
-                # Some sites (e.g. TikTok) default to HEVC/H.265, which many players
-                # cannot decode correctly and can result in missing audio/video.
+                # Rank resolution first so a low-res muxed AAC stream cannot
+                # outrank HD video that needs a separate audio track.
                 "-S",
-                "vcodec:h264,acodec:aac",
+                "res,vcodec:h264,acodec:aac",
                 "--merge-output-format",
                 "mp4",
             ])
